@@ -60,14 +60,29 @@ if ($conn->query($sql) === TRUE) {
     echo "Error creating table: " . $conn->error;
 }
 
+// SQL to create sub_activity_name table
+$sql = "CREATE TABLE sub_activity_name (
+    sub_act_id INT AUTO_INCREMENT PRIMARY KEY,
+    sub_act_name VARCHAR(100) NOT NULL,
+    activity_id INT NOT NULL,
+    FOREIGN KEY (activity_id) REFERENCES activity(activity_id)
+)";
+
+if ($conn->query($sql) === TRUE) {
+    echo "Table sub_activity_name created successfully";
+} else {
+    echo "Error creating table: " . $conn->error;
+}
+
 // SQL to create sub_activity table
 $sql = "CREATE TABLE sub_activity (
     sub_activity_id INT AUTO_INCREMENT PRIMARY KEY,
     activity_id INT NOT NULL,
-    sub_activity_name VARCHAR(100) UNIQUE NOT NULL,
     sub_activity_price DECIMAL(10,2) NOT NULL,
     sub_activity_image VARCHAR(255) NOT NULL,
-    FOREIGN KEY (activity_id) REFERENCES activity(activity_id)
+    sub_act_id INT NOT NULL,
+    FOREIGN KEY (activity_id) REFERENCES activity(activity_id),
+    FOREIGN KEY (sub_act_id) REFERENCES sub_activity_name(sub_act_id)
 )";
 
 if ($conn->query($sql) === TRUE) {
@@ -103,6 +118,7 @@ $sql = "CREATE TABLE booking (
     slot_id INT NOT NULL,
     booking_date DATE NOT NULL,
     booking_time TIME NOT NULL,
+    bill VARCHAR(255) NOT NULL,
     reminder BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (sub_activity_id) REFERENCES sub_activity(sub_activity_id),
@@ -126,6 +142,7 @@ $sql = "CREATE TABLE events (
     max_participants INT NOT NULL,
     event_age_limit INT NOT NULL,
     event_price DECIMAL(10,2) NOT NULL,
+    event_image VARCHAR(255) DEFAULT NULL,
     created_at_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at_time TIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (activity_id) REFERENCES activity(activity_id)
@@ -142,6 +159,7 @@ $sql = "CREATE TABLE event_registration (
     event_reg_id INT AUTO_INCREMENT PRIMARY KEY,
     event_id INT NOT NULL,
     user_id INT NOT NULL,
+    bill VARCHAR(255) NOT NULL,
     FOREIGN KEY (event_id) REFERENCES events(event_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 )";
@@ -158,6 +176,7 @@ $sql = "CREATE TABLE membership_reg (
     user_id INT NOT NULL,
     membership_reg_date DATE NOT NULL,
     membership_reg_time TIME NOT NULL,
+    bill VARCHAR(255) NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 )";
 
@@ -237,6 +256,8 @@ if ($conn->query($sql) === TRUE) {
 } else {
     echo "Error creating table: " . $conn->error;
 }
+
+
 
 // Close connection
 $conn->close();

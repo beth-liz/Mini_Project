@@ -49,16 +49,19 @@ function getBookings() {
     global $conn;
     $sql = "SELECT b.*, 
             u.name as user_name,
-            sa.sub_activity_name,
+            san.sub_act_name as sub_activity_name,
             a.activity_type,
             ts.slot_date,
             ts.slot_start_time,
-            ts.slot_end_time
+            ts.slot_end_time,
+            m.membership_type as user_membership_type
             FROM booking b
             JOIN users u ON b.user_id = u.user_id
             JOIN sub_activity sa ON b.sub_activity_id = sa.sub_activity_id
+            JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
             JOIN activity a ON sa.activity_id = a.activity_id
             JOIN timeslots ts ON b.slot_id = ts.slot_id
+            LEFT JOIN memberships m ON u.membership_id = m.membership_id
             ORDER BY b.booking_id ASC";
     $stmt = $conn->query($sql);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -551,32 +554,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_booking'])) {
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Booking ID</th>
                             <th>User</th>
                             <th>Activity</th>
                             <th>Sub-Activity</th>
                             <th>Date</th>
                             <th>Time</th>
                             <th>Membership</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($bookings as $booking): ?>
                             <tr>
-                                <td><?php echo $booking['booking_id']; ?></td>
                                 <td><?php echo htmlspecialchars($booking['user_name']); ?></td>
                                 <td><?php echo htmlspecialchars($booking['activity_type']); ?></td>
                                 <td><?php echo htmlspecialchars($booking['sub_activity_name']); ?></td>
                                 <td><?php echo date('Y-m-d', strtotime($booking['booking_date'])); ?></td>
                                 <td><?php echo date('H:i', strtotime($booking['booking_time'])); ?></td>
                                 <td><?php echo isset($booking['user_membership_type']) ? htmlspecialchars($booking['user_membership_type']) : ''; ?></td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <button class="btn btn-edit" data-bookingid="<?php echo $booking['booking_id']; ?>">Edit</button>
-                                        <button class="btn btn-danger" data-bookingid="<?php echo $booking['booking_id']; ?>">Delete</button>
-                                    </div>
-                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

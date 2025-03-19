@@ -45,11 +45,13 @@ if ($result->num_rows > 0) {
 }
 
 // Fetch upcoming booking details
-$sql = "SELECT sub_activity_name, booking_date FROM booking 
-        JOIN sub_activity ON booking.sub_activity_id = sub_activity.sub_activity_id 
-        WHERE booking.user_id = (SELECT user_id FROM users WHERE email = '$user_email') 
-        AND booking.booking_date >= CURDATE() 
-        ORDER BY booking.booking_date LIMIT 1"; // Adjust the query as per your database structure
+$sql = "SELECT san.sub_act_name AS sub_activity_name, b.booking_date 
+        FROM booking b
+        JOIN sub_activity sa ON b.sub_activity_id = sa.sub_activity_id 
+        JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
+        WHERE b.user_id = (SELECT user_id FROM users WHERE email = '$user_email') 
+        AND b.booking_date >= CURDATE() 
+        ORDER BY b.booking_date LIMIT 1"; // Adjusted to join with sub_activity_name
 $result = $conn->query($sql);
 $upcoming_booking = "No upcoming bookings"; // Default value
 
@@ -58,22 +60,39 @@ if ($result->num_rows > 0) {
     $upcoming_booking = $row['sub_activity_name'] . " on " . date("F j, Y", strtotime($row['booking_date']));
 }
 
+// Update this SQL query to match your actual table structure
+$sql = "SELECT event_title AS event_name, event_date 
+        FROM events 
+        WHERE event_date >= CURDATE() 
+        ORDER BY event_date ASC 
+        LIMIT 1";
+$result = $conn->query($sql);
+$upcoming_event = "No upcoming events"; // Default value
+
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $upcoming_event = $row['event_name'] . " on " . date("F j, Y", strtotime($row['event_date']));
+}
+
 $conn->close();
 
-// Check if the modal has been shown before
+// Check if the modal has been shown before (only for auto-display on page load)
 if (!isset($_SESSION['modal_shown'])) {
     $_SESSION['modal_shown'] = true; // Set the session variable to indicate the modal has been shown
-    $show_modal = true; // Variable to control modal display
+    $auto_show_modal = true; // Variable to control automatic modal display
 } else {
-    $show_modal = false; // Do not show the modal again
+    $auto_show_modal = false; // Do not automatically show the modal again
 }
+
+// Always allow manual triggering of the modal via the update button
+$show_modal = ($membership_id == 2 || $membership_id == 3); // Show modal if user has eligible membership
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indoor Games</title>
+    <title>Home</title>
     
     <!-- Favicon link -->
     <link rel="icon" href="img/logo3.png" type="image/png">
@@ -264,149 +283,123 @@ if (!isset($_SESSION['modal_shown'])) {
         }
 
         /* Second Section: About What We Offer for Indoor Games */
-        .about-section {
-            padding: 4rem 2rem;
-            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/abt3.jpg') no-repeat center center;
-            background-size: cover;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3rem;
-            max-width: 100%;
-            margin: 0 auto;
-            color: white;
-            text-align: center;
-            scroll-margin-top: 100px;
-        }
+        /* Quick Checks Section Redesign */
+.about-section {
+    padding: 4rem 2rem;
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/abt3.jpg') no-repeat center center;
+    background-size: cover;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3rem;
+    max-width: 100%;
+    margin: 0 auto;
+    color: white;
+    text-align: center;
+    scroll-margin-top: 100px;
+}
 
-        .about-content {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 2rem;
-            flex-wrap: wrap; /* Allow wrapping if necessary */
-        }
-        
-        .info-box {
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            width: 30%; /* Adjust width to fit three boxes */
-            text-align: center;
-            margin: 10px; /* Add margin for spacing */
-        }
-        
-        .info-box h3 {
-            font-family: 'Bodoni Moda', serif;
-            color: #333;
-            margin-bottom: 10px;
-        }
-        
-        .info-box p {
-            font-size: 1rem;
-            color: #666;
-        }
-        .about-content.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
+.quick-checks-container {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1200px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
 
-        .about-image {
-            opacity: 0;
-            transform: translateX(-50px);
-            transition: all 1.5s ease;
-        }
+.quick-check-box {
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid #00bcd4;
+    border-radius: 10px;
+    padding: 35px 25px;
+    width: calc(33.33% - 20px);
+    min-width: 300px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
 
-        .about-image.visible {
-            opacity: 1;
-            transform: translateX(0);
-        }
+.quick-check-box:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+}
 
-        .about-image img {
-            width: 100%;
-            height: auto;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
+.quick-check-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 5px;
+    background: linear-gradient(90deg, #00bcd4, #1e88e5, #00bcd4);
+    background-size: 200% 100%;
+    animation: gradientMove 3s ease infinite;
+}
 
-        .about-content h2 {
-            font-size: 2.8rem;
-            margin-bottom: 1rem;
-            text-align: center;
-            color: white;
-            font-family: 'Bodoni Moda', serif;
-            position: relative;
-        }
+.quick-check-icon {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00bcd4, #1e88e5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto 20px;
+    box-shadow: 0 5px 15px rgba(0, 188, 212, 0.3);
+}
 
-        .about-content h2::after {
-            content: '';
-            position: absolute;
-            bottom: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100px;
-            height: 3px;
-            background: linear-gradient(90deg, #00bcd4, #ff4081, #00bcd4);
-            background-size: 200% 100%;
-            animation: gradientMove 3s ease infinite;
-        }
+.quick-check-icon i {
+    color: white;
+    font-size: 30px;
+}
 
-        .about-content p {
-            font-size: 1.2rem;
-            line-height: 1.6;
-            font-family: 'Aboreto', cursive;
-            color: white;
-        }
+.quick-check-title {
+    font-family: 'Bodoni Moda', serif;
+    color: white;
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    letter-spacing: 1px;
+}
 
-        .about-section {
-            margin-bottom: -2rem;
-            margin-top: -2rem;
-        }
-        
-        .offer-box {
-            position: relative;
-            display: inline-block;
-            width: 400px;
-            height: 200px;
-            background: rgba(255, 255, 255, 0.72);
-            padding: 1rem;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .icon-container {
-            position: absolute;
-            right: 10px;
-            top: 10px;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background-color: #00bcd4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        
-        .offer-title {
-            color: black;
-            font-family: 'Aboreto', cursive;
-        }
-        
-        .offer-description {
-            color: black;
-            font-family: 'Aboreto', cursive;
-        }
+.quick-check-divider {
+    width: 50px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    margin: 15px auto;
+}
 
-        @media screen and (max-width: 768px) {
-            .about-section {
-                flex-direction: column;
-                padding: 2rem 1rem;
-            }
-            
-            .about-image {
-                min-width: 100%;
-            }
-        }
+.quick-check-content {
+    font-family: 'Bodoni Moda', serif;
+    color: #00bcd4;
+    font-size: 1.1rem;
+    margin-top: 10px;
+}
+
+@keyframes gradientMove {
+    0% {
+        background-position: 100% 0;
+    }
+    50% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 100% 0;
+    }
+}
+
+@media (max-width: 992px) {
+    .quick-check-box {
+        width: calc(50% - 20px);
+    }
+}
+
+@media (max-width: 768px) {
+    .quick-check-box {
+        width: 100%;
+    }
+}
 
         /* Third Section - Grid of Indoor Game Images */
         .image-grid {
@@ -679,12 +672,12 @@ footer {
     color: #00bcd4;
 }
 
-/* Updated arrow position */
+/* Updated arrow position for right-aligned dropdown */
 .dropdown::before {
     content: '';
     position: absolute;
     top: -8px;
-    left: 20px;
+    right: 20px; /* Position arrow to the right instead of left */
     border-left: 8px solid transparent;
     border-right: 8px solid transparent;
     border-bottom: 8px solid rgba(0, 0, 0, 0.9);
@@ -818,6 +811,265 @@ footer {
 .membership-title {
     font-size: 1.5rem;
 }
+
+.feedback-section {
+    padding: 4rem 2rem;
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/r12.jpg') no-repeat center center;
+    background-size: cover;
+    text-align: center;
+    color: white;
+}
+
+.feedback-heading h2 {
+    font-family: 'Bodoni Moda', serif;
+    font-size: 2.8rem;
+    margin-bottom: 2rem;
+    position: relative;
+    display: inline-block;
+}
+
+.feedback-heading h2::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 3px;
+    background: linear-gradient(90deg, #00bcd4, #ff4081, #00bcd4);
+    background-size: 200% 100%;
+    animation: gradientMove 3s ease infinite;
+}
+
+.feedback-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid #00bcd4;
+    border-radius: 10px;
+}
+
+.rating-container {
+    margin-bottom: 2rem;
+}
+
+.rating-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.rate-text {
+    font-family: 'Bodoni Moda', serif;
+    font-size: 1.5rem;
+    color: white;
+}
+
+.rating {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: center;
+    gap: 10px;
+}
+
+.rating input {
+    display: none;
+}
+
+.rating label {
+    cursor: pointer;
+    font-size: 30px;
+    color: #ddd;
+    transition: color 0.3s ease;
+}
+
+.rating label:hover,
+.rating label:hover ~ label,
+.rating input:checked ~ label {
+    color: #00bcd4;
+}
+
+textarea {
+    width: 100%;
+    height: 150px;
+    padding: 15px;
+    margin-bottom: 1rem;
+    border: 2px solid #00bcd4;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    font-family: 'Bodoni Moda', serif;
+    resize: vertical;
+}
+
+textarea::placeholder {
+    color: #aaa;
+}
+
+.submit-feedback {
+    background-color: transparent;
+    color: white;
+    padding: 12px 30px;
+    border: 2px solid #00bcd4;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+}
+
+.submit-feedback:hover {
+    background-color: #00bcd4;
+    transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+    .feedback-heading h2 {
+        font-size: 2rem;
+    }
+    
+    .feedback-container {
+        padding: 1rem;
+    }
+    
+    .rating label {
+        font-size: 24px;
+    }
+
+    .rating-wrapper {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .rate-text {
+        font-size: 1.2rem;
+    }
+}
+
+.features-section {
+    padding: 4rem 2rem;
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/r12.jpg') no-repeat center center;
+    background-size: cover;
+    background-attachment: fixed;
+}
+
+.features-heading {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.features-heading h2 {
+    font-family: 'Bodoni Moda', serif;
+    font-size: 2.8rem;
+    color: white;
+    position: relative;
+    display: inline-block;
+}
+
+.features-heading h2::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 3px;
+    background: linear-gradient(90deg, #00bcd4, #ff4081, #00bcd4);
+    background-size: 200% 100%;
+    animation: gradientMove 3s ease infinite;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.feature-card {
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid #00bcd4;
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 20px rgba(0, 188, 212, 0.3);
+}
+
+.feature-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #00bcd4, #1e88e5);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+}
+
+.feature-icon i {
+    font-size: 2rem;
+    color: white;
+}
+
+.feature-card h3 {
+    color: white;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.feature-list {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 2rem;
+}
+
+.feature-list li {
+    color: #fff;
+    font-family: 'Bodoni Moda', serif;
+    margin-bottom: 0.8rem;
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.feature-btn {
+    display: inline-block;
+    padding: 0.8rem 1.5rem;
+    background: transparent;
+    border: 2px solid #00bcd4;
+    color: white;
+    text-decoration: none;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 1rem;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+.feature-btn:hover {
+    background: #00bcd4;
+    color: white;
+    transform: translateY(-2px);
+}
+
+@media (max-width: 992px) {
+    .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+}
     </style>
 </head>
 <body>
@@ -834,14 +1086,20 @@ footer {
                 <li><a href="user_events.php">Events</a></li>
             </ul>
         </nav>
-        <div style="margin-right: 20px; position: relative;">
-    <button class="log"><?php echo htmlspecialchars($user_name); ?> <i class="fas fa-caret-down"></i></button>
-    <div class="dropdown">
-        <a href="user_profile.php">PROFILE</a>
-        <a href="user_bookings.php">BOOKINGS</a>
-        <a href="user_calendar.php">CALENDER</a>
-        <a href="user_payment_history.php">PAYMENT HISTORY</a>
-        <a href="logout.php">LOGOUT</a>
+        <!-- Replace the header div containing buttons with this code -->
+<div style="margin-right: 20px; display: flex; gap: 15px;">
+    <?php if ($membership_id == 2 || $membership_id == 3): ?>
+        <button class="log" id="updateButton">upgrade</button>
+    <?php endif; ?>
+    <div style="position: relative;">
+        <button class="log" id="profileButton"><?php echo htmlspecialchars($user_name); ?> <i class="fas fa-caret-down"></i></button>
+        <div class="dropdown">
+            <a href="user_profile.php">PROFILE</a>
+            <a href="user_bookings.php">BOOKINGS</a>
+            <a href="user_calendar.php">CALENDAR</a>
+            <a href="user_payment_history.php">PAYMENT HISTORY</a>
+            <a href="logout.php">LOGOUT</a>
+        </div>
     </div>
 </div>
     </header>
@@ -859,93 +1117,111 @@ footer {
         <div class="about-content">
             <h2 style="font-family: 'Bodoni Moda', serif;">Quick Checks</h2>
         </div>
-        <div style="display: flex; align-items: center; gap: 3rem;">
-            <div class="offer-box">
-                <div class="icon-container">
-                    <i class="fas fa-user" style="color: white; font-size: 20px;"></i>
+        <div class="quick-checks-container">
+            <div class="quick-check-box">
+                <div class="quick-check-icon">
+                    <i class="fas fa-user"></i>
                 </div>
-                <h3 class="offer-title">MEMBERSHIP STATUS</h3><br>
-                <p class="offer-description"><?php echo htmlspecialchars($membership_type); ?></p>
+                <h3 class="quick-check-title">MEMBERSHIP STATUS</h3>
+                <div class="quick-check-divider"></div>
+                <div class="quick-check-content"><?php echo htmlspecialchars($membership_type); ?></div>
             </div>
-            <div class="offer-box">
-                <div class="icon-container">
-                    <i class="fas fa-calendar" style="color: white; font-size: 20px;"></i>
+            <div class="quick-check-box">
+                <div class="quick-check-icon">
+                    <i class="fas fa-calendar"></i>
                 </div>
-                <h3 class="offer-title">UPCOMING BOOKING</h3><br>
-                <p class="offer-description"><?php echo htmlspecialchars($upcoming_booking); ?></p>
+                <h3 class="quick-check-title">UPCOMING BOOKING</h3>
+                <div class="quick-check-divider"></div>
+                <div class="quick-check-content"><?php echo htmlspecialchars($upcoming_booking); ?></div>
             </div>
-            <div class="offer-box">
-                <div class="icon-container">
-                    <i class="fas fa-calendar-alt" style="color: white; font-size: 20px;"></i>
+            <div class="quick-check-box">
+                <div class="quick-check-icon">
+                    <i class="fas fa-calendar-alt"></i>
                 </div>
-                <h3 class="offer-title">UPCOMING EVENTS</h3><br>
-                <p class="offer-description">No upcoming events</p>
+                <h3 class="quick-check-title">UPCOMING EVENTS</h3>
+                <div class="quick-check-divider"></div>
+                <div class="quick-check-content"><?php echo htmlspecialchars($upcoming_event); ?></div>
             </div>
         </div>
     </section>
     <!-- Update the HTML structure to combine the sections -->
-    <div class="activities-heading">
-        <h2>OUR ACTIVITIES</h2>
-    </div>
-    <section class="image-grid">
-        <!-- Row 1 of 4 images -->
-        <div class="image">
-            <img src="img/in1.png" alt="Outdoor Game 1">
-            <div class="overlay">
-                <h3>TABLE TENNIS</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
-            </div>
+    <section class="features-section">
+        <div class="features-heading">
+            <h2>EXPLORE ARENAX</h2>
         </div>
-        <div class="image">
-            <img src="img/in2.png" alt="Outdoor Game 2">
-            <div class="overlay">
-                <h3>ICE SKATING</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
+        <div class="features-grid">
+            <!-- Popular Activities Card -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-running"></i>
+                </div>
+                <h3>Popular Activities</h3>
+                <ul class="feature-list">
+                    <li>Indoor Sports</li>
+                    <li>Outdoor Adventures</li>
+                    <li>Fitness Programs</li>
+                    <li>Special Events</li>
+                </ul>
+                <a href="user_indoor.php" class="feature-btn">Explore Activities</a>
             </div>
-        </div>
-        <div class="image">
-            <img src="img/in3.png" alt="Outdoor Game 3">
-            <div class="overlay">
-                <h3>CHESS</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
-            </div>
-        </div>
-        <div class="image">
-            <img src="img/in4.png" alt="Outdoor Game 4">
-            <div class="overlay">
-                <h3>RIFLE SHOOTING</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
-            </div>
-        </div>
 
-        <!-- Row 2 of 4 images -->
-        <div class="image">
-            <img src="img/in5.png" alt="Outdoor Game 5">
-            <div class="overlay">
-                <h3>JENGA</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
+            <!-- Quick Booking Card -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <h3>Quick Booking</h3>
+                <ul class="feature-list">
+                    <li>Easy Slot Selection</li>
+                    <li>Instant Confirmation</li>
+                    <li>Flexible Scheduling</li>
+                    <li>Bill Generation</li>
+                </ul>
+                <a href="user_bookings.php" class="feature-btn">Book Now</a>
+            </div>
+
+            <!-- Community Card -->
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h3>Check Out Events</h3>
+                <ul class="feature-list">
+                    <li>Group Activities</li>
+                    <li>Social Events</li>
+                    <li>Tournaments</li>
+                    <li>Fitness Challenges</li>
+                </ul>
+                <a href="user_events.php" class="feature-btn">Join Events</a>
             </div>
         </div>
-        <div class="image">
-            <img src="img/in6.png" alt="Outdoor Game 6">
-            <div class="overlay">
-                <h3>CARDS</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
-            </div>
+    </section>
+    <section class="feedback-section">
+        <div class="feedback-heading">
+            <h2>YOUR FEEDBACK MATTERS</h2>
         </div>
-        <div class="image">
-            <img src="img/in7.png" alt="Outdoor Game 7">
-            <div class="overlay">
-                <h3>BILLARDS</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
-            </div>
-        </div>
-        <div class="image">
-            <img src="img/in7.png" alt="Outdoor Game 8">
-            <div class="overlay">
-                <h3>CAROMS</h3>
-                <a href="signup.php"><button class="book-now">Book Now</button></a>
-            </div>
+        <div class="feedback-container">
+            <form id="feedbackForm" method="POST" action="submit_feedback.php">
+                <div class="rating-container">
+                    <div class="rating-wrapper">
+                        <span class="rate-text">Rate us:</span>
+                        <div class="rating">
+                            <input type="radio" id="star5" name="rating" value="5" required>
+                            <label for="star5" title="5 stars"><i class="fas fa-star"></i></label>
+                            <input type="radio" id="star4" name="rating" value="4">
+                            <label for="star4" title="4 stars"><i class="fas fa-star"></i></label>
+                            <input type="radio" id="star3" name="rating" value="3">
+                            <label for="star3" title="3 stars"><i class="fas fa-star"></i></label>
+                            <input type="radio" id="star2" name="rating" value="2">
+                            <label for="star2" title="2 stars"><i class="fas fa-star"></i></label>
+                            <input type="radio" id="star1" name="rating" value="1">
+                            <label for="star1" title="1 star"><i class="fas fa-star"></i></label>
+                        </div>
+                    </div>
+                </div>
+                <textarea name="feedback_content" placeholder="Share your experience with us..." required></textarea>
+                <button type="submit" class="submit-feedback">Submit Feedback</button>
+            </form>
         </div>
     </section>
     <footer>
@@ -1038,6 +1314,7 @@ footer {
     <?php endif; ?>
 
     <script>
+    document.addEventListener('DOMContentLoaded', function() {
         const header = document.querySelector('.header');
         window.addEventListener('scroll', () => {
             if (window.scrollY > 50) {
@@ -1074,63 +1351,79 @@ footer {
             observer.observe(element);
         });
 
-        const profileButton = document.querySelector('.log');
+        // Profile dropdown and modal functionality
+        const profileButton = document.getElementById('profileButton');
         const dropdown = document.querySelector('.dropdown');
-        dropdown.style.display = 'none'; // Ensure dropdown is hidden initially
-
-        profileButton.addEventListener('click', () => {
-            if (dropdown.style.display === 'none' || dropdown.style.display === '') {
-                dropdown.style.display = 'block';
-            } else {
-                dropdown.style.display = 'none';
-            }
-        });
-
-        // Add this to your script section
+        const updateButton = document.getElementById('updateButton');
+        const modal = document.getElementById('membershipModal');
+        const closeModal = document.getElementById('closeModal');
+        
+        // Ensure dropdown is hidden initially
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+        
+        // Toggle dropdown when profile button is clicked
+        if (profileButton) {
+            profileButton.addEventListener('click', function(event) {
+                event.stopPropagation(); // Prevent event from bubbling up
+                dropdown.style.display = dropdown.style.display === 'none' || dropdown.style.display === '' ? 'block' : 'none';
+            });
+        }
+        
+        // Close dropdown when clicking elsewhere
         document.addEventListener('click', function(event) {
-            const dropdown = document.querySelector('.dropdown');
-            const profileButton = document.querySelector('.log');
-            
-            // Check if the click is outside both the dropdown and the profile button
-            if (!dropdown.contains(event.target) && !profileButton.contains(event.target)) {
+            if (dropdown && !dropdown.contains(event.target) && profileButton && !profileButton.contains(event.target)) {
                 dropdown.style.display = 'none';
             }
         });
-
-        // Prevent the dropdown from closing when clicking inside it
-        dropdown.addEventListener('click', function(event) {
-            event.stopPropagation();
-        });
-
-        // Show the membership modal after a 2-second delay on page load
-        window.onload = function() {
-            const modal = document.getElementById('membershipModal');
-            if (<?php echo json_encode($show_modal); ?>) { // Check if modal should be shown
+        
+        // Prevent dropdown from closing when clicking inside it
+        if (dropdown) {
+            dropdown.addEventListener('click', function(event) {
+                event.stopPropagation();
+            });
+        }
+        
+        // Handle update button click to show modal
+        if (updateButton && modal) {
+            updateButton.addEventListener('click', function() {
+                modal.classList.add('show');
+                modal.style.display = 'block';
+            });
+        }
+        
+        // Close modal when X is clicked
+        if (closeModal && modal) {
+            closeModal.addEventListener('click', function() {
+                modal.classList.remove('show');
                 setTimeout(() => {
-                    modal.classList.add('show'); // Add the show class to trigger the transition
-                    modal.style.display = 'block'; // Ensure the modal is displayed
-                }, 2000); // 2000 milliseconds = 2 seconds
-            }
-
-            // Close the modal when the close button is clicked
-            document.getElementById('closeModal').onclick = function() {
-                modal.classList.remove('show'); // Remove the show class to hide the modal
-                setTimeout(() => {
-                    modal.style.display = 'none'; // Set display to none after transition
-                }, 500); // Match the timeout with the transition duration
-            };
-
-            // Close the modal when clicking outside of it
-            window.onclick = function(event) {
+                    modal.style.display = 'none';
+                }, 500);
+            });
+        }
+        
+        // Close modal when clicking outside
+        if (modal) {
+            window.addEventListener('click', function(event) {
                 if (event.target === modal) {
-                    modal.classList.remove('show'); // Remove the show class to hide the modal
+                    modal.classList.remove('show');
                     setTimeout(() => {
-                        modal.style.display = 'none'; // Set display to none after transition
-                    }, 500); // Match the timeout with the transition duration
+                        modal.style.display = 'none';
+                    }, 500);
                 }
-            };
-        };
+            });
+        }
+        
 
+// Show membership modal after delay if applicable
+if (modal && <?php echo $auto_show_modal ? 'true' : 'false'; ?>) {
+    setTimeout(() => {
+        modal.classList.add('show');
+        modal.style.display = 'block';
+    }, 2000);
+}
+        
         // Add this to your existing JavaScript
         const membershipBoxes = document.querySelectorAll('.membership');
         membershipBoxes.forEach(box => {
@@ -1141,6 +1434,20 @@ footer {
             // Redirect to the payment page with the selected membership ID
             window.location.href = 'payment.php?membership_id=' + membershipId; // Redirect to payment page
         }
-    </script>
+    });
+    
+    // Make sure scroll indicator function is accessible
+    function scrollToAbout() {
+        const aboutSection = document.querySelector('.about-section');
+        const headerHeight = document.querySelector('.header').offsetHeight;
+        const elementPosition = aboutSection.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - headerHeight;
+
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: "smooth"
+        });
+    }
+</script>
 </body>
 </html>

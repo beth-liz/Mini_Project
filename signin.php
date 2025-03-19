@@ -16,10 +16,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // Check for admin credentials
     if ($email === "manager@gmail.com" && $password === "12345678") {
-        $_SESSION['admin'] = true;
+        $_SESSION['manager'] = true;
         $_SESSION['email'] = $email;
         $_SESSION['role'] = 'manager';
         header("Location: manager_dashboard.php");
+        exit();
+    } elseif ($email === "admin@gmail.com" && $password === "12345678") {
+        $_SESSION['admin'] = true;
+        $_SESSION['email'] = $email;
+        $_SESSION['role'] = 'admin';
+        header("Location: admin_overview.php");
         exit();
     }
     

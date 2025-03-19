@@ -7,19 +7,41 @@ if (!isset($_SESSION['email'])) {
     exit();
 }
 
-$sub_activity_id = $_GET['sub_activity_id'] ?? null;
-$date = $_GET['date'] ?? null;
+if (isset($_GET['sub_activity_id']) && isset($_GET['date'])) {
+    $sub_activity_id = $_GET['sub_activity_id'];
+    $selected_date = $_GET['date'];
+    $current_time = date('H:i:s');
 
-if ($sub_activity_id && $date) {
-    $sql = "SELECT slot_start_time, slot_end_time 
-            FROM timeslots 
-            WHERE sub_activity_id = :sub_activity_id AND slot_date = :date";
-    $stmt = $conn->prepare($sql);
-    $stmt->execute(['sub_activity_id' => $sub_activity_id, 'date' => $date]);
-    $timeSlots = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    echo json_encode($timeSlots);
+    try {
+        $sql = "SELECT * FROM timeslots 
+                WHERE sub_activity_id = :sub_activity_id 
+                AND slot_date = :selected_date 
+                AND (slot_date > CURDATE() 
+                    OR (slot_date = CURDATE() AND slot_end_time >= :current_time))
+                AND current_participants < max_participants
+                ORDER BY slot_start_time ASC";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([
+            'sub_activity_id' => $sub_activity_id,
+            'selected_date' => $selected_date,
+            'current_time' => $current_time
+        ]);
+
+        $timeSlots = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Debug log
+        error_log("Fetched time slots: " . json_encode($timeSlots));
+        
+        header('Content-Type: application/json');
+        echo json_encode($timeSlots);
+    } catch (PDOException $e) {
+        error_log("Error in fetch_time_slots.php: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['error' => 'Database error']);
+    }
 } else {
-    echo json_encode([]);
+    http_response_code(400);
+    echo json_encode(['error' => 'Missing required parameters']);
 }
 ?> 

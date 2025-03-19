@@ -71,7 +71,7 @@ $user_id = $_SESSION['user_id'];
 
 // Fetch membership payment history
 $sql = "SELECT p.payment_id, p.amount, p.payment_date, p.payment_time, 
-        m.membership_type, mr.membership_reg_date
+        m.membership_type, mr.membership_reg_date, mr.bill
         FROM payment p
         INNER JOIN membership_reg mr ON p.membership_reg_id = mr.membership_reg_id
         INNER JOIN memberships m ON mr.membership_id = m.membership_id
@@ -290,7 +290,25 @@ $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             color: #6c757d;
         }
         
-       
+        .bill-box {
+            display: flex;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.1); /* Light background for visibility */
+            padding: 10px;
+            border-radius: 5px; /* Rounded corners */
+            cursor: pointer; /* Change cursor to pointer to indicate it's clickable */
+            transition: background-color 0.3s; /* Smooth background change on hover */
+            text-decoration: none; /* Remove underline from link */
+        }
+
+        .bill-box:hover {
+            background-color: rgba(97, 149, 185, 0.2); /* Darker background on hover */
+        }
+
+        .bill-box i {
+            margin-right: 8px; /* Space between icon and text */
+            color:rgb(124, 72, 71); /* Icon color */
+        }
         
     </style>
 </head>
@@ -342,6 +360,13 @@ $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <p><strong>Amount:</strong> ₹<?php echo intval($row['amount']); ?></p>
                     <p><strong>Payment Time:</strong> <?php echo date('h:i A', strtotime($row['payment_time'])); ?></p>
                     <p><strong>Registration Date:</strong> <?php echo date('d M Y', strtotime($row['membership_reg_date'])); ?></p>
+                    <div style="display: flex; align-items: center;">
+                        <p style="margin: 0; margin-right: 10px;"><strong>Bill:</strong></p>
+                        <a class="bill-box" href="<?php echo htmlspecialchars($row['bill']); ?>" target="_blank">
+                            <i class="fas fa-file-download"></i> 
+                            <span>Download Bill</span>
+                        </a>
+                    </div>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
@@ -359,7 +384,7 @@ $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <?php
         // Fetch booking payment history
         $sql_booking = "SELECT p.payment_id, p.amount, p.payment_date, p.payment_time, 
-                        b.booking_date
+                        b.booking_date, b.bill
                         FROM payment p
                         INNER JOIN booking b ON p.booking_id = b.booking_id
                         WHERE p.user_id = ? AND p.booking_id IS NOT NULL
@@ -381,12 +406,74 @@ $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <p><strong>Amount:</strong> ₹<?php echo intval($booking_row['amount']); ?></p>
                     <p><strong>Payment Time:</strong> <?php echo date('h:i A', strtotime($booking_row['payment_time'])); ?></p>
                     <p><strong>Booking Date:</strong> <?php echo date('d M Y', strtotime($booking_row['booking_date'])); ?></p>
+                    <?php if (!empty($booking_row['bill'])): ?>
+                    <div style="display: flex; align-items: center;">
+                        <p style="margin: 0; margin-right: 10px;"><strong>Bill:</strong></p>
+                        <a class="bill-box" href="<?php echo htmlspecialchars($booking_row['bill']); ?>" target="_blank">
+                            <i class="fas fa-file-download"></i> 
+                            <span>Download Bill</span>
+                        </a>
+                    </div>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
         <?php else: ?>
             <div class="no-payments">
                 <i class="fas fa-info-circle fa-2x mb-3"></i>
                 <p>No booking payment history found.</p>
+            </div>
+        <?php endif; ?>
+
+        <!-- Events Payment History Section -->
+        <h2 class="mb-4 text-white" style="font-size: 2em; margin-bottom: 20px;">
+            <i class="fas fa-history"></i> Events Payment History
+        </h2>
+
+        <?php
+        // Fetch events payment history
+        $sql_events = "SELECT p.payment_id, p.amount, p.payment_date, p.payment_time, 
+                       e.event_title, er.bill
+                       FROM payment p
+                       INNER JOIN event_registration er ON p.event_reg_id = er.event_reg_id
+                       INNER JOIN events e ON er.event_id = e.event_id
+                       WHERE p.user_id = ? AND p.event_reg_id IS NOT NULL
+                       ORDER BY p.payment_date DESC, p.payment_time DESC";
+
+        $stmt_events = $conn->prepare($sql_events);
+        $stmt_events->bindValue(1, $user_id, PDO::PARAM_INT);
+        $stmt_events->execute();
+        $events_result = $stmt_events->fetchAll(PDO::FETCH_ASSOC);
+
+        if (count($events_result) > 0): ?>
+            <?php foreach ($events_result as $event_row): ?>
+                <div class="payment-card">
+                    <p>
+                        <span style="font-size: 1.5em; color: white;">
+                            <?php echo date('d M Y', strtotime($event_row['payment_date'])); ?>
+                        </span>
+                    </p>
+                    <p><strong>Event:</strong> 
+                        <span class="badge status-badge">
+                            <?php echo htmlspecialchars($event_row['event_title']); ?>
+                        </span>
+                    </p>
+                    <p><strong>Amount:</strong> ₹<?php echo intval($event_row['amount']); ?></p>
+                    <p><strong>Payment Time:</strong> <?php echo date('h:i A', strtotime($event_row['payment_time'])); ?></p>
+                    <?php if (!empty($event_row['bill'])): ?>
+                    <div style="display: flex; align-items: center;">
+                        <p style="margin: 0; margin-right: 10px;"><strong>Bill:</strong></p>
+                        <a class="bill-box" href="<?php echo htmlspecialchars($event_row['bill']); ?>" target="_blank">
+                            <i class="fas fa-file-download"></i> 
+                            <span>Download Bill</span>
+                        </a>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div class="no-payments">
+                <i class="fas fa-info-circle fa-2x mb-3"></i>
+                <p>No events payment history found.</p>
             </div>
         <?php endif; ?>
     </div>

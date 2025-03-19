@@ -19,6 +19,18 @@ if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role']
     exit();
 }
 
+require_once 'db_connect.php';
+
+// Check if time slots need to be generated
+$lastGeneration = isset($_SESSION['last_timeslot_generation']) ? $_SESSION['last_timeslot_generation'] : 0;
+$currentTime = time();
+
+// Only generate once per day (86400 seconds)
+if ($currentTime - $lastGeneration > 86400) {
+    generateTimeSlots($conn);
+    $_SESSION['last_timeslot_generation'] = $currentTime;
+}
+
 function convertTo24Hour($time, $period) {
     // Remove any leading/trailing spaces
     $time = trim($time);
@@ -67,13 +79,11 @@ if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role']
     exit();
 }
 
-require_once 'db_connect.php';
-
 $activeSection = 'time-slots';
 
 function getTimeSlots() {
     global $conn;
-    $sql = "SELECT ts.*, sa.sub_activity_name, a.activity_type, ts.current_participants 
+    $sql = "SELECT ts.*, a.activity_type, ts.current_participants 
             FROM timeslots ts
             JOIN sub_activity sa ON ts.sub_activity_id = sa.sub_activity_id
             JOIN activity a ON sa.activity_id = a.activity_id
@@ -87,7 +97,9 @@ $timeSlots = getTimeSlots();
 // Fetch sub-activities from the database
 function getSubActivities() {
     global $conn;
-    $sql = "SELECT * FROM sub_activity";
+    $sql = "SELECT sa.sub_activity_id, san.sub_act_name 
+            FROM sub_activity sa
+            JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id";
     $stmt = $conn->query($sql);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -122,43 +134,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sub_activity_id'])) {
         $_SESSION['error_message'] = "Exceeded limit of 12 participants.";
         error_log("Error: Exceeded limit of 12 participants."); // Log the error
     } else if (!empty($sub_activity_id) && !empty($slot_date) && !empty($slot_start_time) && !empty($slot_end_time)) {
-        // Check for overlapping time slots
-        $sql = "SELECT * FROM timeslots WHERE sub_activity_id = :sub_activity_id AND slot_date = :slot_date 
-                AND ((slot_start_time <= :slot_end_time AND slot_end_time >= :slot_start_time))";
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([
-            'sub_activity_id' => $sub_activity_id,
-            'slot_date' => $slot_date,
-            'slot_start_time' => $slot_start_time,
-            'slot_end_time' => $slot_end_time
-        ]);
-        $existingSlots = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        if (count($existingSlots) > 0) {
-            $_SESSION['error_message'] = "Activity is already allotted for this time.";
-            error_log("Error: Activity is already allotted for this time."); // Log the error
-        } else {
-            try {
-                $sql = "INSERT INTO timeslots (sub_activity_id, slot_date, slot_start_time, slot_end_time, max_participants) 
-                        VALUES (:sub_activity_id, :slot_date, :slot_start_time, :slot_end_time, :max_participants)";
-                $stmt = $conn->prepare($sql);
-                $stmt->execute([
-                    'sub_activity_id' => $sub_activity_id,  
-                    'slot_date' => $slot_date,
-                    'slot_start_time' => $slot_start_time,
-                    'slot_end_time' => $slot_end_time,
-                    'max_participants' => $max_participants
-                ]);
-                
-                // Return JSON response with a custom success message
-                echo json_encode(['success' => true, 'message' => "Time slot added successfully!"]);
-                exit();
-            } catch (PDOException $e) {
-                $error_message = "Error: " . $e->getMessage();
-                error_log($error_message); // Log the error message
-                echo json_encode(['success' => false, 'message' => $error_message]);
-                exit();
-            }
+        try {
+            $sql = "INSERT INTO timeslots (sub_activity_id, slot_date, slot_start_time, slot_end_time, max_participants) 
+                    VALUES (:sub_activity_id, :slot_date, :slot_start_time, :slot_end_time, :max_participants)";
+            $stmt = $conn->prepare($sql);
+            $stmt->execute([
+                'sub_activity_id' => $sub_activity_id,  
+                'slot_date' => $slot_date,
+                'slot_start_time' => $slot_start_time,
+                'slot_end_time' => $slot_end_time,
+                'max_participants' => $max_participants
+            ]);
+            
+            // Return JSON response with a custom success message
+            echo json_encode(['success' => true, 'message' => "Time slot added successfully!"]);
+            exit();
+        } catch (PDOException $e) {
+            $error_message = "Error: " . $e->getMessage();
+            error_log($error_message); // Log the error message
+            echo json_encode(['success' => false, 'message' => $error_message]);
+            exit();
         }
     }
 }
@@ -172,19 +167,34 @@ function getTimeSlotsBySubActivity($sub_activity_id) {
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-function getTimeSlotsBySubActivityId($sub_activity_id) {
+// Modify the getTimeSlotsBySubActivityId function to accept a date parameter
+function getTimeSlotsBySubActivityId($sub_activity_id, $date = null) {
     global $conn;
-    $sql = "SELECT * FROM timeslots WHERE sub_activity_id = :sub_activity_id ORDER BY slot_id ASC";
+    $sql = "SELECT * FROM timeslots WHERE sub_activity_id = :sub_activity_id";
+    
+    // Add date filter if provided
+    if ($date) {
+        $sql .= " AND slot_date = :slot_date";
+    }
+    
+    $sql .= " ORDER BY slot_date ASC, slot_start_time ASC";
     $stmt = $conn->prepare($sql);
-    $stmt->execute(['sub_activity_id' => $sub_activity_id]);
+    $params = ['sub_activity_id' => $sub_activity_id];
+    
+    if ($date) {
+        $params['slot_date'] = $date;
+    }
+    
+    $stmt->execute($params);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Store the last viewed sub-activity ID in session when viewing time slots
+// Update the AJAX endpoint to handle date parameter
 if (isset($_GET['sub_activity_id'])) {
     $sub_activity_id = $_GET['sub_activity_id'];
+    $date = isset($_GET['date']) ? $_GET['date'] : null;
     $_SESSION['last_sub_activity_id'] = $sub_activity_id; // Store in session
-    $timeSlots = getTimeSlotsBySubActivityId($sub_activity_id);
+    $timeSlots = getTimeSlotsBySubActivityId($sub_activity_id, $date);
     echo json_encode($timeSlots);
     exit(); // Stop further execution
 }
@@ -207,6 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
 }
 
 // Handle form submission for updating time slot
+// Handle form submission for adding or updating time slot
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $isUpdate = isset($_POST['slot_id']) && !empty($_POST['slot_id']);
     
@@ -237,74 +248,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success' => false, 'message' => "Exceeded limit of 12 participants."]);
         exit();
     } else if (!empty($sub_activity_id) && !empty($slot_date) && !empty($slot_start_time) && !empty($slot_end_time)) {
-        // Check for overlapping time slots
-        $sql = "SELECT * FROM timeslots WHERE sub_activity_id = :sub_activity_id AND slot_date = :slot_date 
-                AND ((slot_start_time <= :slot_end_time AND slot_end_time >= :slot_start_time))";
-        
-        // Exclude the current slot being updated from the check
-        if ($isUpdate) {
-            $sql .= " AND slot_id != :slot_id";
-        }
-        
-        $stmt = $conn->prepare($sql);
-        $params = [
-            'sub_activity_id' => $sub_activity_id,
-            'slot_date' => $slot_date,
-            'slot_start_time' => $slot_start_time,
-            'slot_end_time' => $slot_end_time
-        ];
-        
-        if ($isUpdate) {
-            $params['slot_id'] = $_POST['slot_id'];
-        }
-        
-        $stmt->execute($params);
-        $existingSlots = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        if (count($existingSlots) > 0) {
-            echo json_encode(['success' => false, 'message' => "Activity is already allotted for this time."]);
-            exit();
-        } else {
-            try {
-                if ($isUpdate) {
-                    $sql = "UPDATE timeslots SET 
-                            sub_activity_id = :sub_activity_id,
-                            slot_date = :slot_date,
-                            slot_start_time = :slot_start_time,
-                            slot_end_time = :slot_end_time,
-                            max_participants = :max_participants
-                            WHERE slot_id = :slot_id";
-                    $params = [
-                        'sub_activity_id' => $sub_activity_id,
-                        'slot_date' => $slot_date,
-                        'slot_start_time' => $slot_start_time,
-                        'slot_end_time' => $slot_end_time,
-                        'max_participants' => $max_participants,
-                        'slot_id' => $_POST['slot_id']
-                    ];
-                } else {
-                    $sql = "INSERT INTO timeslots (sub_activity_id, slot_date, slot_start_time, slot_end_time, max_participants) 
-                            VALUES (:sub_activity_id, :slot_date, :slot_start_time, :slot_end_time, :max_participants)";
-                    $params = [
-                        'sub_activity_id' => $sub_activity_id,
-                        'slot_date' => $slot_date,
-                        'slot_start_time' => $slot_start_time,
-                        'slot_end_time' => $slot_end_time,
-                        'max_participants' => $max_participants
-                    ];
-                }
-                
-                $stmt = $conn->prepare($sql);
-                $stmt->execute($params);
-                
-                echo json_encode(['success' => true, 'message' => $isUpdate ? "Time slot updated successfully!" : "Time slot added successfully!"]);
-                exit();
-            } catch (PDOException $e) {
-                $error_message = "Error: " . $e->getMessage();
-                error_log($error_message);
-                echo json_encode(['success' => false, 'message' => $error_message]);
-                exit();
+        try {
+            if ($isUpdate) {
+                $sql = "UPDATE timeslots SET 
+                        sub_activity_id = :sub_activity_id,
+                        slot_date = :slot_date,
+                        slot_start_time = :slot_start_time,
+                        slot_end_time = :slot_end_time,
+                        max_participants = :max_participants
+                        WHERE slot_id = :slot_id";
+                $params = [
+                    'sub_activity_id' => $sub_activity_id,
+                    'slot_date' => $slot_date,
+                    'slot_start_time' => $slot_start_time,
+                    'slot_end_time' => $slot_end_time,
+                    'max_participants' => $max_participants,
+                    'slot_id' => $_POST['slot_id']
+                ];
+            } else {
+                $sql = "INSERT INTO timeslots (sub_activity_id, slot_date, slot_start_time, slot_end_time, max_participants) 
+                        VALUES (:sub_activity_id, :slot_date, :slot_start_time, :slot_end_time, :max_participants)";
+                $params = [
+                    'sub_activity_id' => $sub_activity_id,
+                    'slot_date' => $slot_date,
+                    'slot_start_time' => $slot_start_time,
+                    'slot_end_time' => $slot_end_time,
+                    'max_participants' => $max_participants
+                ];
             }
+            
+            $stmt = $conn->prepare($sql);
+            $stmt->execute($params);
+            
+            echo json_encode(['success' => true, 'message' => $isUpdate ? "Time slot updated successfully!" : "Time slot added successfully!"]);
+            exit();
+        } catch (PDOException $e) {
+            $error_message = "Error: " . $e->getMessage();
+            error_log($error_message);
+            echo json_encode(['success' => false, 'message' => $error_message]);
+            exit();
         }
     }
 }
@@ -318,6 +300,113 @@ if (isset($_GET['slot_id'])) {
     echo json_encode($slot);
     exit();
 }
+
+// Add this function to your file, before the HTML section
+
+function generateTimeSlots($conn) {
+    // Get current date and date 2 months from now
+    $currentDate = new DateTime();
+    $twoMonthsLater = new DateTime();
+    $twoMonthsLater->modify('+2 months');
+    
+    // Format dates for use in database queries
+    $startDate = $currentDate->format('Y-m-d');
+    $endDate = $twoMonthsLater->format('Y-m-d');
+    
+    // Check the latest date for which time slots exist
+    $checkSql = "SELECT MAX(slot_date) as latest_date FROM timeslots";
+    $checkStmt = $conn->query($checkSql);
+    $latestDate = $checkStmt->fetch(PDO::FETCH_ASSOC)['latest_date'];
+    
+    // If there's no data or the latest date is less than the end date
+    if (!$latestDate || strtotime($latestDate) < strtotime($endDate)) {
+        
+        // Define the start date for slot generation
+        $generationStartDate = $latestDate ? new DateTime($latestDate) : $currentDate;
+        $generationStartDate->modify('+1 day'); // Start from the next day
+        
+        // Define sub-activities to assign time slots
+        $subActivitySql = "SELECT sub_activity_id FROM sub_activity";
+        $subActivityStmt = $conn->query($subActivitySql);
+        $subActivities = $subActivityStmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        // If we don't have any sub-activities, we can't create time slots
+        if (empty($subActivities)) {
+            error_log("No sub-activities found for time slot generation");
+            return;
+        }
+        
+        // Define the time slots to generate
+        $timeSlots = [
+            ['06:00:00', '07:00:00'],
+            ['07:00:00', '08:00:00'],
+            ['08:00:00', '09:00:00'],
+            ['09:00:00', '10:00:00'],
+            ['10:00:00', '11:00:00'],
+            ['11:00:00', '12:00:00'],
+            ['12:00:00', '13:00:00'],
+            ['13:00:00', '14:00:00'],
+            ['14:00:00', '15:00:00'],
+            ['15:00:00', '16:00:00']
+        ];
+        
+        // Begin transaction
+        $conn->beginTransaction();
+        
+        try {
+            // Generate time slots for each day within our range
+            $insertSql = "INSERT INTO timeslots (sub_activity_id, slot_date, slot_start_time, slot_end_time, max_participants) 
+                          VALUES (:sub_activity_id, :slot_date, :slot_start_time, :slot_end_time, :max_participants)";
+            $insertStmt = $conn->prepare($insertSql);
+            
+            $currentDateToGenerate = clone $generationStartDate;
+            
+            while ($currentDateToGenerate <= $twoMonthsLater) {
+                $dateString = $currentDateToGenerate->format('Y-m-d');
+                
+                // For each sub-activity
+                foreach ($subActivities as $subActivityId) {
+                    // For each time slot
+                    foreach ($timeSlots as $timeSlot) {
+                        // Check if this time slot already exists for this date and sub-activity
+                        $checkSlotSql = "SELECT COUNT(*) FROM timeslots 
+                                         WHERE sub_activity_id = :sub_activity_id 
+                                         AND slot_date = :slot_date 
+                                         AND slot_start_time = :slot_start_time";
+                        $checkSlotStmt = $conn->prepare($checkSlotSql);
+                        $checkSlotStmt->execute([
+                            'sub_activity_id' => $subActivityId,
+                            'slot_date' => $dateString,
+                            'slot_start_time' => $timeSlot[0]
+                        ]);
+                        
+                        // Only insert if it doesn't already exist
+                        if ($checkSlotStmt->fetchColumn() == 0) {
+                            $insertStmt->execute([
+                                'sub_activity_id' => $subActivityId,
+                                'slot_date' => $dateString,
+                                'slot_start_time' => $timeSlot[0],
+                                'slot_end_time' => $timeSlot[1],
+                                'max_participants' => 10 // Default max participants
+                            ]);
+                        }
+                    }
+                }
+                
+                $currentDateToGenerate->modify('+1 day');
+            }
+            
+            $conn->commit();
+            error_log("Time slots generated successfully through " . $twoMonthsLater->format('Y-m-d'));
+        } catch (PDOException $e) {
+            $conn->rollBack();
+            error_log("Error generating time slots: " . $e->getMessage());
+        }
+    }
+}
+
+// Call this function when the page loads to ensure time slots are up to date
+generateTimeSlots($conn);
 
 ?>
 <!DOCTYPE html>
@@ -757,42 +846,78 @@ if (isset($_GET['slot_id'])) {
             </header>
 
             <!-- New Time Slot Form -->
-            <form id="new-time-slot-form" method="POST" style="display: none; margin-top: 20px;">
+            <form id="new-time-slot-form" method="POST" style="display: none; margin-top: 20px; background: rgba(76, 132, 196, 0.15); padding: 20px; border-radius: 10px;">
                 <input type="hidden" id="edit-slot-id" name="slot_id" value="">
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <select name="sub_activity_id" id="sub_activity_id" required style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
-                        <option value="">Select Activity</option>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="sub_activity_id" style="display: block; margin-bottom: 5px;">Sub Activity:</label>
+                    <select name="sub_activity_id" id="sub_activity_id" required style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                        <option value="">Select Sub Activity</option>
                         <?php foreach ($subActivities as $subActivity): ?>
-                            <option value="<?php echo $subActivity['sub_activity_id']; ?>"><?php echo htmlspecialchars($subActivity['sub_activity_name']); ?></option>
+                            <option value="<?php echo $subActivity['sub_activity_id']; ?>"><?php echo htmlspecialchars($subActivity['sub_act_name']); ?></option>
                         <?php endforeach; ?>
                     </select>
-                    
-                    <input type="date" name="slot_date" id="slot_date" required min="<?php echo date('Y-m-d'); ?>" style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
-                    
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="slot_date" style="display: block; margin-bottom: 5px;">Date:</label>
+                    <input type="date" name="slot_date" id="slot_date" required style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;">Start Time:</label>
                     <div style="display: flex; align-items: center; gap: 5px;">
-                        <input type="text" name="slot_start_time" id="slot_start_time" required placeholder="Start Time (hh:mm)" 
-                            style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;" 
-                            pattern="^(0?[1-9]|1[0-2]):[0-5][0-9]$" title="Enter time in hh:mm format (12-hour)">
-                        <select name="start_period" id="start_period" required style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                        <select name="slot_start_time" id="slot_start_time" required style="flex: 1; padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                            <option value="">Select Start Time</option>
+                            <option value="06:00">6:00</option>
+                            <option value="07:00">7:00</option>
+                            <option value="08:00">8:00</option>
+                            <option value="09:00">9:00</option>
+                            <option value="10:00">10:00</option>
+                            <option value="11:00">11:00</option>
+                            <option value="12:00">12:00</option>
+                            <option value="13:00">1:00</option>
+                            <option value="14:00">2:00</option>
+                            <option value="15:00">3:00</option>
+                        </select>
+                        <select name="start_period" id="start_period" required style="width: 80px; padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
                             <option value="AM">AM</option>
                             <option value="PM">PM</option>
                         </select>
                     </div>
-                    
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;">End Time:</label>
                     <div style="display: flex; align-items: center; gap: 5px;">
-                        <input type="text" name="slot_end_time" id="slot_end_time" required placeholder="End Time (hh:mm)" 
-                            style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;" 
-                            pattern="^(0?[1-9]|1[0-2]):[0-5][0-9]$" title="Enter time in hh:mm format (12-hour)">
-                        <select name="end_period" id="end_period" required style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                        <select name="slot_end_time" id="slot_end_time" required style="flex: 1; padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                            <option value="">Select End Time</option>
+                            <option value="07:00">7:00</option>
+                            <option value="08:00">8:00</option>
+                            <option value="09:00">9:00</option>
+                            <option value="10:00">10:00</option>
+                            <option value="11:00">11:00</option>
+                            <option value="12:00">12:00</option>
+                            <option value="13:00">1:00</option>
+                            <option value="14:00">2:00</option>
+                            <option value="15:00">3:00</option>
+                            <option value="16:00">4:00</option>
+                        </select>
+                        <select name="end_period" id="end_period" required style="width: 80px; padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
                             <option value="AM">AM</option>
                             <option value="PM">PM</option>
                         </select>
                     </div>
-                    
-                    <input type="number" name="max_participants" id="max_participants" required min="1" max="12" placeholder="Max Participants" 
-                        style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
-                    
-                    <button type="submit" id="submit-btn" class="btn btn-primary">Save Time Slot</button>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="max_participants" style="display: block; margin-bottom: 5px;">Max Participants:</label>
+                    <input type="number" name="max_participants" id="max_participants" required min="1" max="12" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" id="cancel-btn" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" id="submit-btn" class="btn btn-primary">Add Time Slot</button>
                     <button type="button" id="update-btn" class="btn btn-primary" style="display: none;">Update Time Slot</button>
                 </div>
             </form>
@@ -803,7 +928,7 @@ if (isset($_GET['slot_id'])) {
                 <!-- Loop through each sub-activity -->
                 <?php foreach ($subActivities as $subActivity): ?>
                     <div class="sub-activity-box" style="flex: 0 0 calc(25% - 20px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 10px; padding: 15px; background: rgba(255, 255, 255, 0.1); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); text-align: center;">
-                        <h2 style="font-size: 1.2rem; color: #00bcd4; margin-bottom: 10px; text-transform: uppercase;"><?php echo htmlspecialchars($subActivity['sub_activity_name']); ?></h2>
+                        <h2 style="font-size: 1.2rem; color: #00bcd4; margin-bottom: 10px; text-transform: uppercase;"><?php echo htmlspecialchars($subActivity['sub_act_name']); ?></h2>
                         <button class="btn btn-secondary view-timeslots-btn" data-subactivity-id="<?php echo $subActivity['sub_activity_id']; ?>" style="background-color: #00bcd4; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.3s;">View Time Slots</button>
                     </div>
                 <?php endforeach; ?>
@@ -812,6 +937,15 @@ if (isset($_GET['slot_id'])) {
             <!-- New container for displaying time slots -->
             <div id="time-slots-display" style="margin-top: 20px; display: none;">
                 <h3 style="color: #00bcd4;">Time Slots for <span id="activity-name"></span></h3>
+                
+                <!-- Add date selection form -->
+                <div style="margin: 20px 0; display: flex; gap: 10px; align-items: center;">
+                    <label for="date-filter">Select Date:</label>
+                    <input type="date" id="date-filter" style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255, 255, 255, 0.5); background: rgba(255, 255, 255, 0.2); color: white;">
+                    <button id="filter-date-btn" class="btn btn-primary" style="margin-left: 10px;">Filter</button>
+                    <button id="clear-filter-btn" class="btn btn-secondary">Show All</button>
+                </div>
+                
                 <section class="section-content">
                     <!-- Updated Time Slots Table -->
                     <table class="data-table">
@@ -890,35 +1024,43 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('add-timeslot-btn').addEventListener('click', function() {
         resetForm();
         const form = document.getElementById('new-time-slot-form');
-        form.style.display = form.style.display === 'none' || form.style.display === '' ? 'block' : 'none';
+        form.style.display = 'block';
+    });
+
+    // Cancel button handler
+    document.getElementById('cancel-btn').addEventListener('click', function() {
+        document.getElementById('new-time-slot-form').style.display = 'none';
     });
 
     // Form submission handler
     document.getElementById('new-time-slot-form').addEventListener('submit', function(e) {
         e.preventDefault();
         
-        // Validate inputs
-        const startTime = document.querySelector('input[name="slot_start_time"]');
-        const endTime = document.querySelector('input[name="slot_end_time"]');
-        const maxParticipants = document.getElementById('max_participants');
-        const slotDate = document.getElementById('slot_date');
+        // Get form values
+        const subActivityId = document.getElementById('sub_activity_id').value;
+        const slotDate = document.getElementById('slot_date').value;
+        const maxParticipants = document.getElementById('max_participants').value;
         
-        // Validate time format
-        const timeRegex = /^(0?[1-9]|1[0-2]):[0-5][0-9]$/;
-        if (!timeRegex.test(startTime.value) || !timeRegex.test(endTime.value)) {
-            alert('Please enter time in hh:mm format (12-hour)');
+        // Validate inputs
+        if (!subActivityId) {
+            alert('Please select a sub-activity');
+            return;
+        }
+        
+        if (!slotDate) {
+            alert('Please select a date');
             return;
         }
         
         // Validate max participants
-        const participantsValue = parseInt(maxParticipants.value);
+        const participantsValue = parseInt(maxParticipants);
         if (isNaN(participantsValue) || participantsValue < 1 || participantsValue > 12) {
             alert('Number of participants must be between 1 and 12');
             return;
         }
         
         // Validate date is not in the past
-        const selectedDate = new Date(slotDate.value);
+        const selectedDate = new Date(slotDate);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         if (selectedDate < today) {
@@ -930,10 +1072,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const slotId = document.getElementById('edit-slot-id').value;
         const isUpdate = slotId !== '';
 
-        if (isUpdate) {
-            formData.append('slot_id', slotId);
-        }
-
         // Send request to server
         fetch('manager_time_slots.php', {
             method: 'POST',
@@ -944,7 +1082,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 alert(data.message);
                 resetForm();
-                location.reload();
+                document.getElementById('new-time-slot-form').style.display = 'none';
+                
+                // If we're viewing time slots for this sub-activity, refresh the view
+                const currentSubActivityId = document.getElementById('time-slots-display').getAttribute('data-subactivity-id');
+                if (currentSubActivityId === subActivityId) {
+                    const dateFilter = document.getElementById('date-filter').value;
+                    if (dateFilter) {
+                        fetchTimeSlots(subActivityId, dateFilter);
+                    }
+                }
             } else {
                 alert('Error: ' + data.message);
             }
@@ -962,53 +1109,25 @@ document.addEventListener('DOMContentLoaded', function() {
             const activityName = this.parentElement.querySelector('h2').innerText;
             const timeSlotsTableBody = document.getElementById('time-slots-table-body');
             const timeSlotsDisplay = document.getElementById('time-slots-display');
+            
+            // Store the current sub-activity ID for later use
+            timeSlotsDisplay.setAttribute('data-subactivity-id', subActivityId);
 
             // Clear previous time slots
             timeSlotsTableBody.innerHTML = '';
             document.getElementById('activity-name').innerText = activityName;
-
-            // Fetch time slots for the selected sub-activity
-            fetch(`manager_time_slots.php?sub_activity_id=${subActivityId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.length > 0) {
-                        data.forEach(slot => {
-                            const row = document.createElement('tr');
-                            const startTime = new Date(`2000-01-01 ${slot.slot_start_time}`);
-                            const endTime = new Date(`2000-01-01 ${slot.slot_end_time}`);
-                            const formatTime = (date) => {
-                                return date.toLocaleTimeString('en-US', { 
-                                    hour: '2-digit', 
-                                    minute: '2-digit', 
-                                    hour12: true 
-                                });
-                            };
-
-                            row.innerHTML = `
-                                <td>${slot.slot_id}</td>
-                                <td>${slot.slot_date}</td>
-                                <td>${formatTime(startTime)}</td>
-                                <td>${formatTime(endTime)}</td>
-                                <td>${slot.max_participants}</td>
-                                <td>${slot.current_participants}</td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <button class="btn btn-edit" data-slotid="${slot.slot_id}">Edit</button>
-                                        <button class="btn btn-danger" data-slotid="${slot.slot_id}">Delete</button>
-                                    </div>
-                                </td>
-                            `;
-                            timeSlotsTableBody.appendChild(row);
-                        });
-                    } else {
-                        timeSlotsTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No time slots available for this activity.</td></tr>';
-                    }
-                    timeSlotsDisplay.style.display = 'block';
-                })
-                .catch(error => {
-                    console.error('Error fetching time slots:', error);
-                    timeSlotsTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Error loading time slots.</td></tr>';
-                });
+            
+            // Reset date filter
+            document.getElementById('date-filter').value = '';
+            
+            // Show the time slots display with empty table and prompt
+            timeSlotsDisplay.style.display = 'block';
+            
+            // Display a message prompting the user to select a date
+            timeSlotsTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Please select a date and click "Filter" to view time slots.</td></tr>';
+            
+            // Scroll to the time slots section
+            timeSlotsDisplay.scrollIntoView({ behavior: 'smooth' });
         });
     });
 
@@ -1025,14 +1144,115 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Helper function to convert 24-hour time to 12-hour format
-    function convertTo12Hour(time24) {
-        const timestamp = new Date(`2000-01-01T${time24}`);
-        return timestamp.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            hour12: true 
-        });
+    // Update button click handler
+    document.getElementById('update-btn').addEventListener('click', function(e) {
+        document.getElementById('new-time-slot-form').dispatchEvent(new Event('submit'));
+    });
+
+    // Function to fetch time slots with date filter
+    function fetchTimeSlots(subActivityId, date) {
+        const timeSlotsTableBody = document.getElementById('time-slots-table-body');
+        
+        // Show loading indicator
+        timeSlotsTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Loading time slots...</td></tr>';
+        
+        // Build the URL with parameters
+        let url = `manager_time_slots.php?sub_activity_id=${subActivityId}`;
+        
+        // Add date parameter if provided
+        if (date) {
+            url += `&date=${date}`;
+        }
+        
+        console.log("Fetching time slots from URL:", url); // Debug log
+        
+        // Fetch time slots
+        fetch(url)
+            .then(response => {
+                console.log("Response status:", response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log("Received data:", data); // Debug log
+                
+                // Clear previous time slots
+                timeSlotsTableBody.innerHTML = '';
+                
+                if (data && data.length > 0) {
+                    data.forEach(slot => {
+                        const row = document.createElement('tr');
+                        
+                        // Format times properly
+                        const formatTime = (timeString) => {
+                            try {
+                                // Try to parse the time string
+                                const [hours, minutes, seconds] = timeString.split(':');
+                                const hour = parseInt(hours);
+                                const period = hour >= 12 ? 'PM' : 'AM';
+                                const hour12 = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+                                return `${hour12}:${minutes} ${period}`;
+                            } catch (e) {
+                                console.error("Error parsing time:", e, timeString);
+                                return timeString; // Return the original string if parsing fails
+                            }
+                        };
+
+                        row.innerHTML = `
+                            <td>${slot.slot_id}</td>
+                            <td>${slot.slot_date}</td>
+                            <td>${formatTime(slot.slot_start_time)}</td>
+                            <td>${formatTime(slot.slot_end_time)}</td>
+                            <td>${slot.max_participants}</td>
+                            <td>${slot.current_participants || 0}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn btn-edit" data-slotid="${slot.slot_id}">Edit</button>
+                                    <button class="btn btn-danger" data-slotid="${slot.slot_id}">Delete</button>
+                                </div>
+                            </td>
+                        `;
+                        timeSlotsTableBody.appendChild(row);
+                    });
+                } else {
+                    // Display message when no time slots are found for the selected date
+                    const dateMessage = date ? `on ${date}` : '';
+                    timeSlotsTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center;">No time slots available for this activity ${dateMessage}.</td></tr>`;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching time slots:', error);
+                timeSlotsTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center;">Error loading time slots: ${error.message}</td></tr>`;
+            });
+    }
+
+    // Add event listeners for the date filter buttons
+    document.getElementById('filter-date-btn').addEventListener('click', function() {
+        const subActivityId = document.getElementById('time-slots-display').getAttribute('data-subactivity-id');
+        const dateFilter = document.getElementById('date-filter').value;
+        
+        if (!dateFilter) {
+            alert('Please select a date to filter');
+            return;
+        }
+        
+        console.log("Filtering for sub-activity:", subActivityId, "date:", dateFilter); // Debug log
+        fetchTimeSlots(subActivityId, dateFilter);
+    });
+
+    document.getElementById('clear-filter-btn').addEventListener('click', function() {
+        // Clear the date input and fetch all time slots for the current sub-activity
+        document.getElementById('date-filter').value = '';
+        const subActivityId = document.getElementById('time-slots-display').getAttribute('data-subactivity-id');
+        fetchTimeSlots(subActivityId);
+    });
+
+    // Helper function to reset form
+    function resetForm() {
+        const form = document.getElementById('new-time-slot-form');
+        form.reset();
+        document.getElementById('edit-slot-id').value = '';
+        document.getElementById('submit-btn').style.display = 'inline-block';
+        document.getElementById('update-btn').style.display = 'none';
     }
 
     // Edit time slot handler
@@ -1053,24 +1273,47 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('sub_activity_id').value = data.sub_activity_id;
                     document.getElementById('max_participants').value = data.max_participants;
                     
-                    // Convert and set times
-                    const startTime = convertTo12Hour(data.slot_start_time);
-                    const endTime = convertTo12Hour(data.slot_end_time);
+                    // Parse and set times
+                    const parseTime = (timeString) => {
+                        const [hours, minutes] = timeString.split(':');
+                        const hour = parseInt(hours);
+                        const period = hour >= 12 ? 'PM' : 'AM';
+                        const hour12 = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+                        return {
+                            time: `${hour12}:${minutes}`,
+                            period: period
+                        };
+                    };
                     
-                    const [startHourMin, startPeriod] = startTime.split(' ');
-                    const [endHourMin, endPeriod] = endTime.split(' ');
+                    const startTime = parseTime(data.slot_start_time);
+                    const endTime = parseTime(data.slot_end_time);
                     
-                    document.getElementById('slot_start_time').value = startHourMin;
-                    document.getElementById('start_period').value = startPeriod;
-                    document.getElementById('slot_end_time').value = endHourMin;
-                    document.getElementById('end_period').value = endPeriod;
+                    // Set the start time
+                    for (let i = 0; i < document.getElementById('slot_start_time').options.length; i++) {
+                        const option = document.getElementById('slot_start_time').options[i];
+                        if (option.value === startTime.time) {
+                            document.getElementById('slot_start_time').selectedIndex = i;
+                            break;
+                        }
+                    }
+                    document.getElementById('start_period').value = startTime.period;
+                    
+                    // Set the end time
+                    for (let i = 0; i < document.getElementById('slot_end_time').options.length; i++) {
+                        const option = document.getElementById('slot_end_time').options[i];
+                        if (option.value === endTime.time) {
+                            document.getElementById('slot_end_time').selectedIndex = i;
+                            break;
+                        }
+                    }
+                    document.getElementById('end_period').value = endTime.period;
                     
                     // Update button visibility
                     document.getElementById('submit-btn').style.display = 'none';
                     document.getElementById('update-btn').style.display = 'inline-block';
                     
                     // Scroll to form
-                    window.scrollTo(0, 0);
+                    form.scrollIntoView({ behavior: 'smooth' });
                 }
             })
             .catch(error => {
@@ -1089,28 +1332,66 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success) {
                     alert(data.message);
-                    location.reload();
+                    
+                    // Refresh the current view if we're looking at time slots
+                    const timeSlotsDisplay = document.getElementById('time-slots-display');
+                    if (timeSlotsDisplay.style.display !== 'none') {
+                        const subActivityId = timeSlotsDisplay.getAttribute('data-subactivity-id');
+                        const dateFilter = document.getElementById('date-filter').value;
+                        if (dateFilter) {
+                            fetchTimeSlots(subActivityId, dateFilter);
+                        } else {
+                            fetchTimeSlots(subActivityId);
+                        }
+                    }
                 } else {
                     alert('Error deleting time slot: ' + data.message);
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting time slot');
+            });
         }
     }
 
-    // Helper function to reset form
-    function resetForm() {
-        const form = document.getElementById('new-time-slot-form');
-        form.reset();
-        document.getElementById('edit-slot-id').value = '';
-        document.getElementById('submit-btn').style.display = 'inline-block';
-        document.getElementById('update-btn').style.display = 'none';
-    }
-
-    // Update button click handler
-    document.getElementById('update-btn').addEventListener('click', function(e) {
-        e.preventDefault();
-        document.getElementById('new-time-slot-form').dispatchEvent(new Event('submit'));
+    // Add this to your existing JavaScript
+    document.getElementById('slot_start_time').addEventListener('change', function() {
+        const startTime = this.value;
+        const endTimeSelect = document.getElementById('slot_end_time');
+        
+        if (startTime) {
+            // Parse the hour from the start time
+            const startHour = parseInt(startTime.split(':')[0]);
+            const endHour = startHour + 1;
+            
+            // Format the end time
+            let endTimeValue = endHour.toString().padStart(2, '0') + ':00';
+            
+            // Set the end time select value
+            for (let i = 0; i < endTimeSelect.options.length; i++) {
+                if (endTimeSelect.options[i].value === endTimeValue) {
+                    endTimeSelect.selectedIndex = i;
+                    break;
+                }
+            }
+            
+            // Also set the AM/PM dropdowns appropriately
+            const startPeriodSelect = document.getElementById('start_period');
+            const endPeriodSelect = document.getElementById('end_period');
+            
+            if (startHour < 12) {
+                startPeriodSelect.value = 'AM';
+            } else {
+                startPeriodSelect.value = 'PM';
+            }
+            
+            if (endHour < 12) {
+                endPeriodSelect.value = 'AM';
+            } else {
+                endPeriodSelect.value = 'PM';
+            }
+        }
     });
 });
     </script>

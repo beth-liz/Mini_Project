@@ -510,6 +510,15 @@ if (isset($success_message) || isset($error_message)) {
             color: white; /* Change to your desired color */
             opacity: 0.7; /* Optional: Adjusts the opacity of the placeholder text */
         }
+
+        /* Add this new style for disabled buttons */
+        .btn.disabled {
+            opacity: 0.5; /* Make the button look disabled */
+            pointer-events: none; /* Prevent any interaction */
+            cursor: not-allowed; /* Change cursor to indicate disabled state */
+        }
+
+    
     </style>
 </head>
 <body>
@@ -533,15 +542,14 @@ if (isset($success_message) || isset($error_message)) {
     <main class="dashboard-content">
         <!-- Add memberships section -->
         <div id="membership-section" class="dashboard-section">
-            <header class="dashboard-header">
+            <header class="dashboard-header" style="text-align: center;">
                 <h1>Membership Management</h1>
-                <div class="header-actions">
-                    <button class="btn btn-primary" id="add-membership-btn">Add New Membership</button>
-                    <div class="notifications">
+                <div class="header-actions" style="text-align: center;">
+                    <div class="notifications" style="display: inline-block;">
                         <span class="notifications-icon">🔔</span>
                         <span class="notifications-badge">3</span>
                     </div>
-                    <div class="dropdown">
+                    <div class="dropdown" style="display: inline-block;">
                         <div class="user-profile">
                             <div class="user-avatar">MG</div>
                             <span>Manager</span>
@@ -554,30 +562,6 @@ if (isset($success_message) || isset($error_message)) {
             </header>
 
             <section class="section-content">
-                <!-- Add membership form -->
-                <div id="add-membership-form" style="display: none; margin-bottom: 20px;">
-                    <form method="POST" class="form-container">
-                    <div style="margin-bottom: 10px;">
-    <?php if (isset($error_message)): ?>
-        <div style="color: #e74c3c;"><?php echo $error_message; ?></div>
-    <?php endif; ?>
-    <?php if (isset($success_message)): ?>
-        <div style="color: #2ecc71;"><?php echo $success_message; ?></div>
-    <?php endif; ?>
-</div>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="text" name="membership_type" placeholder="Enter Membership Type" required
-                                   style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                          background: rgba(255,255,255,0.1); color: white;">
-                            <input type="number" name="membership_price" placeholder="Price (optional)" step="0.01"
-                                   style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                          background: rgba(255,255,255,0.1); color: white;">
-                            <button type="submit" class="btn btn-primary">Save Membership</button>
-                            <button type="button" class="btn btn-secondary" id="cancel-membership-btn">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-
                 <!-- Memberships table -->
                 <table class="data-table">
                     <thead>
@@ -585,7 +569,7 @@ if (isset($success_message) || isset($error_message)) {
                             <th>ID</th>
                             <th>Membership Type</th>
                             <th>Price</th>
-                            <th>Actions</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -605,10 +589,10 @@ if (isset($success_message) || isset($error_message)) {
                                     }
                                     ?>
                                 </td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <button class="btn btn-edit" data-membershipid="<?php echo $membership['membership_id']; ?>">Edit</button>
-                                        <button class="btn btn-danger" data-membershipid="<?php echo $membership['membership_id']; ?>">Delete</button>
+                                <td style="text-align: center;">
+                                    <div class="action-buttons" style="display: flex; justify-content: center;">
+                                        <button class="btn btn-edit" data-membershipid="<?php echo $membership['membership_id']; ?>" disabled style="cursor: not-allowed;">Edit</button>
+                                        <button class="btn btn-danger" data-membershipid="<?php echo $membership['membership_id']; ?>" disabled style="cursor: not-allowed;">Delete</button>
                                     </div>
                                 </td>
                             </tr>
@@ -618,319 +602,5 @@ if (isset($success_message) || isset($error_message)) {
             </section>
         </div>
     </main>
-
-   
-    <script>
-        // Add this inside your existing script tag
-        document.addEventListener('DOMContentLoaded', function() {
-    const addMembershipBtn = document.getElementById('add-membership-btn');
-    const cancelMembershipBtn = document.getElementById('cancel-membership-btn');
-    const addMembershipForm = document.getElementById('add-membership-form');
-
-    // Show form when Add New Membership button is clicked
-    addMembershipBtn.addEventListener('click', function() {
-        addMembershipForm.style.display = 'block';
-        addMembershipBtn.style.display = 'none';
-    });
-
-    // Modified cancel button handler
-    cancelMembershipBtn.addEventListener('click', function() {
-        // Check if there are any error or success messages
-        const errorMessage = document.querySelector('div[style*="color: #e74c3c"]');
-        const successMessage = document.querySelector('div[style*="color: #2ecc71"]');
-
-        // Hide the form and show the add button
-        addMembershipForm.style.display = 'none';
-        addMembershipBtn.style.display = 'block';
-
-        // Clear form inputs
-        const form = addMembershipForm.querySelector('form');
-        form.reset();
-
-        // Clear any error or success messages
-        if (errorMessage) {
-            errorMessage.remove();
-        }
-        if (successMessage) {
-            successMessage.remove();
-        }
-    });
-
-    // Show form if there are error or success messages on page load
-    function checkMessages() {
-        const errorMessage = document.querySelector('div[style*="color: #e74c3c"]');
-        const successMessage = document.querySelector('div[style*="color: #2ecc71"]');
-
-        if (errorMessage || successMessage) {
-            addMembershipForm.style.display = 'block';
-            addMembershipBtn.style.display = 'none';
-        }
-    }
-
-    // Run on page load
-    checkMessages();
-
-    const membershipForm = document.querySelector('form');
-    const membershipTypeInput = document.querySelector('input[name="membership_type"]');
-    const membershipPriceInput = document.querySelector('input[name="membership_price"]');
-    
-    // Create error message container
-    const errorContainer = document.createElement('div');
-    errorContainer.style.color = '#e74c3c';
-    errorContainer.style.marginBottom = '10px';
-    errorContainer.style.display = 'none';
-    membershipForm.insertBefore(errorContainer, membershipForm.firstChild);
-
-    async function validateMembershipType(type) {
-        if (type.length < 3) {
-            return "Membership type must be at least 3 characters long";
-        }
-        
-        if (!/^[a-zA-Z\s]+$/.test(type)) {
-            return "Membership type can only contain letters and spaces";
-        }
-
-        // Check for duplicate membership type
-        try {
-            const formData = new FormData();
-            formData.append('membership_type', type);
-            
-            const response = await fetch('check_membership_type.php', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const result = await response.text();
-            if (result === 'true') {
-                return "This membership type already exists";
-            }
-        } catch (error) {
-            console.error('Error checking membership type:', error);
-        }
-
-        return null;
-    }
-
-    function validateMembershipPrice(price) {
-        if (price === '') {
-            return null; // Price is optional
-        }
-        
-        const numPrice = parseFloat(price);
-        if (isNaN(numPrice)) {
-            return "Price must be a number";
-        }
-        
-        if (numPrice < 0) {
-            return "Price cannot be negative";
-        }
-        
-        if (numPrice > 3000) {
-            return "Price cannot exceed $3000";
-        }
-        
-        return null;
-    }
-
-    function showError(message) {
-        errorContainer.textContent = message;
-        errorContainer.style.display = 'block';
-        // Ensure form stays visible when showing error
-        addMembershipForm.style.display = 'block';
-        addMembershipBtn.style.display = 'none';
-    }
-
-    function hideError() {
-        errorContainer.style.display = 'none';
-    }
-
-    membershipForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const typeError = await validateMembershipType(membershipTypeInput.value.trim());
-        const priceError = validateMembershipPrice(membershipPriceInput.value.trim());
-        
-        if (typeError || priceError) {
-            showError(typeError || priceError);
-        } else {
-            hideError();
-            this.submit();
-        }
-    });
-
-    // Real-time validation feedback
-    membershipTypeInput.addEventListener('input', async function() {
-        const error = await validateMembershipType(this.value.trim());
-        this.setCustomValidity(error || '');
-        if (error) {
-            showError(error);
-        } else {
-            hideError();
-        }
-    });
-
-    membershipPriceInput.addEventListener('input', function() {
-        const error = validateMembershipPrice(this.value.trim());
-        this.setCustomValidity(error || '');
-        if (error) {
-            showError(error);
-        } else {
-            hideError();
-        }
-        // Automatically show 'Free' if the price is 0
-        if (this.value.trim() === '0') {
-            this.value = ''; // Clear the input
-            showError('Membership price is set to Free');
-        } else if (this.value.trim() === '') {
-            // Do not show 'Free' if the input is empty
-            hideError();
-        }
-    });
-});
-
-// Add this to your existing script section in manager_membership.php
-// Handle delete button clicks
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('btn-danger')) {
-        const membershipId = e.target.dataset.membershipid;
-        
-        if (confirm('Are you sure you want to delete this membership?')) {
-            const formData = new FormData();
-            formData.append('membership_id', membershipId);
-            
-            fetch('delete_membership.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Remove the row from the table
-                    e.target.closest('tr').remove();
-                } else {
-                    alert(data.error || 'Error deleting membership');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error deleting membership');
-            });
-        }
-    }
-});
-
-// Handle edit button clicks
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('btn-edit')) {
-        const row = e.target.closest('tr');
-        const membershipId = e.target.dataset.membershipid;
-        const membershipType = row.cells[1].textContent.trim();
-        let membershipPrice = row.cells[2].textContent.trim();
-        
-        // Ensure the price is correctly parsed
-        membershipPrice = membershipPrice === 'Free' ? '' : membershipPrice.replace('₹', '').replace(',', '').trim();
-        
-        // Switch row to edit mode
-        row.cells[1].innerHTML = `<input type="text" value="${membershipType}" class="edit-type" 
-            style="padding: 5px; border-radius: 3px; background: rgba(255,255,255,0.1); color: white; 
-            border: 1px solid rgba(255,255,255,0.2);">`;
-        row.cells[2].innerHTML = `<input type="number" value="${membershipPrice}" class="edit-price" step="0.01" 
-            style="padding: 5px; border-radius: 3px; background: rgba(255,255,255,0.1); color: white; 
-            border: 1px solid rgba(255,255,255,0.2);">`;
-        
-        // Store original values for cancel operation
-        row.dataset.originalType = membershipType;
-        row.dataset.originalPrice = membershipPrice;
-        
-        // Change buttons to save/cancel
-        const actionCell = row.cells[3];
-        actionCell.innerHTML = `
-            <div class="action-buttons">
-                <button class="btn btn-primary save-edit" data-membershipid="${membershipId}">Save</button>
-                <button class="btn btn-secondary cancel-edit">Cancel</button>
-            </div>
-        `;
-    }
-});
-
-// Handle save edit
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('save-edit')) {
-        const row = e.target.closest('tr');
-        const membershipId = e.target.dataset.membershipid;
-        const newType = row.querySelector('.edit-type').value.trim();
-        const newPrice = row.querySelector('.edit-price').value.trim();
-        
-        // Validate input
-        if (newType.length < 3) {
-            alert('Membership type must be at least 3 characters long');
-            return;
-        }
-        
-        if (!/^[a-zA-Z\s]+$/.test(newType)) {
-            alert('Membership type can only contain letters and spaces');
-            return;
-        }
-        
-        if (newPrice !== '' && (isNaN(newPrice) || parseFloat(newPrice) < 0 || parseFloat(newPrice) > 3000)) {
-            alert('Invalid price. Price must be between 0 and 3000');
-            return;
-        }
-        
-        const formData = new FormData();
-        formData.append('membership_id', membershipId);
-        formData.append('membership_type', newType);
-        formData.append('membership_price', newPrice);
-        
-        fetch('update_memberships.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Update the row with new values
-                row.cells[1].textContent = newType;
-                row.cells[2].textContent = newPrice === '0' ? 'Free' : `₹${parseFloat(newPrice).toFixed(0)}`;
-                
-                // Restore action buttons
-                row.cells[3].innerHTML = `
-                    <div class="action-buttons">
-                        <button class="btn btn-edit" data-membershipid="${membershipId}">Edit</button>
-                        <button class="btn btn-danger" data-membershipid="${membershipId}">Delete</button>
-                    </div>
-                `;
-            } else {
-                alert(data.error || 'Error updating membership');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error updating membership');
-        });
-    }
-});
-
-// Handle cancel edit
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('cancel-edit')) {
-        const row = e.target.closest('tr');
-        const membershipId = row.cells[0].textContent;
-        
-        // Restore original values
-        row.cells[1].textContent = row.dataset.originalType;
-        row.cells[2].textContent = row.dataset.originalPrice ? 
-            `₹${parseFloat(row.dataset.originalPrice).toFixed(0)}` : 'Free';
-        
-        // Restore action buttons
-        row.cells[3].innerHTML = `
-            <div class="action-buttons">
-                <button class="btn btn-edit" data-membershipid="${membershipId}">Edit</button>
-                <button class="btn btn-danger" data-membershipid="${membershipId}">Delete</button>
-            </div>
-        `;
-    }
-});
-    </script>
 </body>
 </html>

@@ -1,6 +1,11 @@
 <?php
 session_start();
 require_once 'db_connect.php';
+require 'vendor/autoload.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
 
 // Redirect if not logged in
 if (!isset($_SESSION['email'])) {
@@ -24,8 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Get sub_activity_id and slot_id
     $stmt = $conn->prepare("SELECT sa.sub_activity_id, ts.slot_id 
                            FROM sub_activity sa 
+                           JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
                            JOIN timeslots ts ON sa.sub_activity_id = ts.sub_activity_id 
-                           WHERE sa.sub_activity_name = ? 
+                           WHERE san.sub_act_name = ? 
                            AND DATE(ts.slot_date) = ? 
                            AND CONCAT(TIME_FORMAT(ts.slot_start_time, '%l:%i %p'), ' - ', 
                                TIME_FORMAT(ts.slot_end_time, '%l:%i %p')) = ?");
@@ -47,6 +53,26 @@ if (isset($_POST['process_payment'])) {
             $booking_details['slot_id']
         ]);
         $booking_id = $conn->lastInsertId();
+
+        // Generate PDF bill
+        $bill_filename = 'booking_bill_' . $booking_id . '.pdf';
+        $bill_dir = __DIR__ . '/bills/'; // Use absolute path
+        
+        // Create directory if it doesn't exist
+        if (!file_exists($bill_dir)) {
+            mkdir($bill_dir, 0777, true);
+        }
+        
+        $bill_path = $bill_dir . $bill_filename;
+        $relative_bill_path = 'bills/' . $bill_filename; // For database storage
+        
+        // Generate the PDF bill
+        generateBookingBill($user['user_id'], $booking_details['sub_activity_id'], $booking_details['slot_id'], 
+                           $booking_id, date('Y-m-d'), date('H:i:s'), $price, $bill_path, $conn);
+
+        // Update booking with bill path
+        $stmt = $conn->prepare("UPDATE booking SET bill = ? WHERE booking_id = ?");
+        $stmt->execute([$relative_bill_path, $booking_id]);
 
         // Insert into payment table
         $stmt = $conn->prepare("INSERT INTO payment (user_id, amount, payment_date, payment_time, booking_id) 
@@ -71,39 +97,59 @@ if (isset($_POST['process_payment'])) {
 
         $conn->commit();
 
-        // Send confirmation email
-        $to = $user['email'];
-        $subject = "Booking Confirmation - ArenaX";
-        
-        $message = "
-        <html>
-        <head>
-            <title>Booking Confirmation</title>
-        </head>
-        <body>
-            <h2>Thank you for your booking at ArenaX!</h2>
-            <p>Dear {$user['name']},</p>
-            <p>Your booking has been confirmed with the following details:</p>
-            <ul>
-                <li>Activity: $activity</li>
-                <li>Date: $date</li>
-                <li>Time: $timeslot</li>
-                <li>Amount Paid: ₹$price</li>
-            </ul>
-            <p>Booking ID: $booking_id</p>
-            <p>We look forward to seeing you!</p>
-            <br>
-            <p>Best regards,</p>
-            <p>ArenaX Team</p>
-        </body>
-        </html>
-        ";
+        // Send confirmation email using PHPMailer
+        // Create a new PHPMailer instance
+        $mail = new PHPMailer(true);
 
-        $headers = "MIME-Version: 1.0" . "\r\n";
-        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-        $headers .= 'From: ArenaX <noreply@arenax.com>' . "\r\n";
+        try {
+            // Server settings
+            $mail->isSMTP();
+            $mail->Host = 'smtp.gmail.com';
+            $mail->SMTPAuth = true;
+            $mail->Username = 'elizabethmaryabraham09@gmail.com'; // Your Gmail address
+            $mail->Password = 'xvec mfoh vkhp fabg'; // Your Gmail App Password
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = 587;
 
-        mail($to, $subject, $message, $headers);
+            // Recipients
+            $mail->setFrom('elizabethmaryabraham09@gmail.com', 'ArenaX');
+            $mail->addAddress($user['email'], $user['name']);
+
+            // Attach the bill
+            $mail->addAttachment($bill_path);
+
+            // Content
+            $mail->isHTML(true);
+            $mail->Subject = "Booking Confirmation - ArenaX";
+            $mail->Body = "
+            <html>
+            <head>
+                <title>Booking Confirmation</title>
+            </head>
+            <body>
+                <h2>Thank you for your booking at ArenaX!</h2>
+                <p>Dear {$user['name']},</p>
+                <p>Your booking has been confirmed with the following details:</p>
+                <ul>
+                    <li>Activity: $activity</li>
+                    <li>Date: $date</li>
+                    <li>Time: $timeslot</li>
+                    <li>Amount Paid: ₹$price</li>
+                </ul>
+                <p>Booking ID: $booking_id</p>
+                <p>Please find your booking receipt attached to this email.</p>
+                <p>We look forward to seeing you!</p>
+                <br>
+                <p>Best regards,</p>
+                <p>ArenaX Team</p>
+            </body>
+            </html>";
+
+            $mail->send();
+        } catch (Exception $e) {
+            // Log the error but don't stop the process
+            error_log("Email could not be sent. Mailer Error: {$mail->ErrorInfo}");
+        }
 
         // Instead of immediately redirecting, show success page
         ?>
@@ -202,6 +248,153 @@ if (isset($_POST['process_payment'])) {
         header("Location: user_outdoor.php");
         exit();
     }
+}
+
+/**
+ * Generate a PDF bill for booking
+ */
+function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, $booking_date, $booking_time, $amount, $output_path, $conn) {
+    // Get user details
+    $stmt = $conn->prepare("SELECT name, email, mobile FROM users WHERE user_id = ?");
+    $stmt->execute([$user_id]);
+    $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Get activity details
+    $stmt = $conn->prepare("SELECT sa.sub_act_id, san.sub_act_name, a.activity_type 
+                           FROM sub_activity sa 
+                           JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
+                           JOIN activity a ON sa.activity_id = a.activity_id 
+                           WHERE sa.sub_activity_id = ?");
+    $stmt->execute([$sub_activity_id]);
+    $activity_data = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Get slot details
+    $stmt = $conn->prepare("SELECT slot_date, slot_start_time, slot_end_time FROM timeslots WHERE slot_id = ?");
+    $stmt->execute([$slot_id]);
+    $slot_data = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Format the time slot
+    $time_slot = date('h:i A', strtotime($slot_data['slot_start_time'])) . ' - ' . 
+                 date('h:i A', strtotime($slot_data['slot_end_time']));
+    
+    // Include TCPDF library
+    require_once('vendor/tecnickcom/tcpdf/tcpdf.php');
+    
+    // Create new PDF document
+    $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+    
+    // Set document information
+    $pdf->SetCreator('ArenaX');
+    $pdf->SetAuthor('ArenaX');
+    $pdf->SetTitle('Booking Receipt');
+    $pdf->SetSubject('Booking Receipt');
+    
+    // Remove header/footer
+    $pdf->setPrintHeader(false);
+    $pdf->setPrintFooter(false);
+    
+    // Set margins
+    $pdf->SetMargins(15, 15, 15);
+    
+    // Add a page
+    $pdf->AddPage();
+    
+    // Set font
+    $pdf->SetFont('helvetica', '', 12);
+    
+    // Title
+    $pdf->SetFont('helvetica', 'B', 20);
+    $pdf->Cell(0, 20, 'ArenaX', 0, 1, 'R');
+    
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 5, 'Sports Complex', 0, 1, 'R');
+    $pdf->Cell(0, 5, 'Kerala, India', 0, 1, 'R');
+    $pdf->Cell(0, 5, 'info@arenax.com', 0, 1, 'R');
+    
+    $pdf->Ln(10);
+    
+    // Bill title
+    $pdf->SetFont('helvetica', 'B', 16);
+    $pdf->Cell(0, 10, 'BOOKING RECEIPT', 0, 1, 'C');
+    $pdf->Ln(5);
+    
+    // Bill details
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Receipt Number:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, 'BOOK-' . str_pad($booking_id, 6, '0', STR_PAD_LEFT), 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Booking Date:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $booking_date . ' ' . $booking_time, 0, 1);
+    
+    $pdf->Ln(5);
+    
+    // Customer details
+    $pdf->SetFont('helvetica', 'B', 14);
+    $pdf->Cell(0, 10, 'Customer Details', 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Name:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $user_data['name'], 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Email:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $user_data['email'], 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Phone:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $user_data['mobile'], 0, 1);
+    
+    $pdf->Ln(5);
+    
+    // Booking details
+    $pdf->SetFont('helvetica', 'B', 14);
+    $pdf->Cell(0, 10, 'Booking Details', 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Activity:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $activity_data['sub_act_name'] . ' (' . $activity_data['activity_type'] . ')', 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Date:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $slot_data['slot_date'], 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Time:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $time_slot, 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Amount Paid:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, '₹' . number_format($amount, 2), 0, 1);
+    
+    $pdf->Ln(10);
+    
+    // Thank you note
+    $pdf->SetFont('helvetica', 'I', 12);
+    $pdf->Cell(0, 10, 'Thank you for choosing ArenaX. We appreciate your business!', 0, 1, 'C');
+    
+    // Terms and conditions
+    $pdf->Ln(10);
+    $pdf->SetFont('helvetica', 'B', 10);
+    $pdf->Cell(0, 8, 'Terms and Conditions:', 0, 1);
+    $pdf->SetFont('helvetica', '', 9);
+    $pdf->MultiCell(0, 5, '1. Please arrive 15 minutes before your scheduled time.
+2. Cancellations must be made at least 24 hours in advance.
+3. For any queries, please contact our customer support.', 0, 'L');
+    
+    // Output the PDF
+    $pdf->Output($output_path, 'F');
+    
+    return true;
 }
 ?>
 

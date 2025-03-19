@@ -29,33 +29,29 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) >
 }
 $_SESSION['last_activity'] = time();
 
-// Check if user is logged in and is a manager
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
-    header('Location: signin.php');
-    exit();
-}
-
-// Check if user is logged in and is a manager
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
-    header('Location: signin.php');
-    exit();
-}
-
 // Add at the top of the file
 require_once 'db_connect.php'; // Updated path to database connection file
 
 // Add after require_once 'db_connect.php';
 
-function isSubActivityNameUnique($name, $conn, $currentId = null) {
-    $sql = "SELECT COUNT(*) FROM sub_activity WHERE LOWER(sub_activity_name) = LOWER(:name)";
-    if ($currentId) {
-        $sql .= " AND sub_activity_id != :currentId"; // Exclude the current ID
+function isSubActivityCombinationUnique($activity_id, $sub_act_id, $conn, $sub_activity_id = null) {
+    $sql = "SELECT COUNT(*) FROM sub_activity 
+            WHERE activity_id = :activity_id AND sub_act_id = :sub_act_id";
+    
+    if ($sub_activity_id) {
+        $sql .= " AND sub_activity_id != :sub_activity_id"; // Exclude current record if editing
     }
+    
     $stmt = $conn->prepare($sql);
-    $params = ['name' => $name];
-    if ($currentId) {
-        $params['currentId'] = $currentId; // Add current ID to parameters
+    $params = [
+        'activity_id' => $activity_id,
+        'sub_act_id' => $sub_act_id
+    ];
+    
+    if ($sub_activity_id) {
+        $params['sub_activity_id'] = $sub_activity_id;
     }
+    
     $stmt->execute($params);
     return $stmt->fetchColumn() == 0;
 }
@@ -65,7 +61,7 @@ function validateSubActivityName($name) {
 }
 
 function validatePrice($price) {
-    return is_numeric($price) && $price >= 0 && $price <= 3000;
+    return is_numeric($price) && $price >= 0 && $price <= 1000;
 }
 
 function validateImage($image) {
@@ -75,33 +71,32 @@ function validateImage($image) {
 // Add this at the very top of your PHP code, after require_once 'db_connect.php';
 $activeSection = 'sub-activities';
 
-// Update the sub-activity form submission section
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sub_activity_name'])) {
-    $sub_activity_name = trim($_POST['sub_activity_name']);
+// Handle form submission for both adding and updating sub-activities
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $activity_id = $_POST['activity_id'];
+    $sub_act_id = $_POST['sub_act_id'];
     $sub_activity_price = $_POST['sub_activity_price'];
     $sub_activity_image = $_FILES['sub_activity_image'];
-    $sub_activity_id = $_POST['sub_activity_id'] ?? null; // Get the sub_activity_id if it exists
+    $current_image = isset($_POST['current_image']) ? $_POST['current_image'] : '';
     
     $errors = [];
 
-    // Validate name
-    if (!validateSubActivityName($sub_activity_name)) {
-        $errors[] = "Sub-activity name must be at least 3 characters long and contain only letters and spaces";
-    }
-
-    // Check if name is unique, ignoring itself if editing
-    if (!isSubActivityNameUnique($sub_activity_name, $conn, $sub_activity_id)) {
-        $errors[] = "A sub-activity with this name already exists";
-    }
-
     // Validate price
     if (!validatePrice($sub_activity_price)) {
-        $errors[] = "Price must be between 0 and 3000";
+        $errors[] = "Price must be between 0 and 1000";
+    }
+
+    // Check if this is an update or new record
+    $isUpdate = isset($_POST['sub_activity_id']) && !empty($_POST['sub_activity_id']);
+    $sub_activity_id = $isUpdate ? $_POST['sub_activity_id'] : null;
+    
+    // Validate uniqueness of activity_id and sub_act_id combination
+    if (!isSubActivityCombinationUnique($activity_id, $sub_act_id, $conn, $sub_activity_id)) {
+        $errors[] = "This sub-activity already exists for the selected activity";
     }
 
     // Initialize image path variable
-    $imagePath = null;
+    $imagePath = $isUpdate ? $current_image : null;
 
     // Check if a new image is uploaded
     if ($sub_activity_image['name'] && $sub_activity_image['error'] == UPLOAD_ERR_OK) {
@@ -124,51 +119,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sub_activity_name']))
                 $errors[] = "Failed to upload image. Error Code: " . $sub_activity_image['error'];
             }
         }
+    } elseif (!$isUpdate && $sub_activity_image['error'] == UPLOAD_ERR_NO_FILE) {
+        // Require image for new records
+        $errors[] = "Image is required for new sub-activities";
     } elseif ($sub_activity_image['error'] !== UPLOAD_ERR_NO_FILE) {
         // Handle other upload errors
         $errors[] = "An error occurred during file upload. Error Code: " . $sub_activity_image['error'];
     }
 
     if (empty($errors)) {
-        // If editing, update the existing record instead of inserting a new one
-        if ($sub_activity_id) {
-            $sql = "UPDATE sub_activity SET activity_id = :activity_id, sub_activity_name = :sub_activity_name, 
-                    sub_activity_price = :sub_activity_price" . 
-                    ($imagePath ? ", sub_activity_image = :sub_activity_image" : "") . 
-                    " WHERE sub_activity_id = :sub_activity_id";
+        if ($isUpdate) {
+            // Update existing sub-activity
+            $sql = "UPDATE sub_activity 
+                    SET activity_id = :activity_id, 
+                        sub_act_id = :sub_act_id, 
+                        sub_activity_price = :sub_activity_price";
+            
+            // Only update image if we have a new one
+            if ($imagePath && $imagePath !== $current_image) {
+                $sql .= ", sub_activity_image = :sub_activity_image";
+            }
+            
+            $sql .= " WHERE sub_activity_id = :sub_activity_id";
+            
             $stmt = $conn->prepare($sql);
             $params = [
                 'activity_id' => $activity_id,
-                'sub_activity_name' => $sub_activity_name,
+                'sub_act_id' => $sub_act_id,
                 'sub_activity_price' => $sub_activity_price,
-                'sub_activity_id' => $sub_activity_id // Include the ID for the update
+                'sub_activity_id' => $sub_activity_id
             ];
-            if ($imagePath) {
-                $params['sub_activity_image'] = $imagePath; // Include the new image path if uploaded
+            
+            // Only add image parameter if updated
+            if ($imagePath && $imagePath !== $current_image) {
+                $params['sub_activity_image'] = $imagePath;
             }
-            $stmt->execute($params);
-            $_SESSION['sub_activity_success_message'] = "Sub-activity saved successfully!";
+            
+            // Execute the statement and check for errors
+            if ($stmt->execute($params)) {
+                $_SESSION['sub_activity_success_message'] = "Sub-activity updated successfully!";
+            } else {
+                // Log the error message
+                $_SESSION['sub_activity_error_message'] = "Failed to update sub-activity: " . implode(", ", $stmt->errorInfo());
+            }
         } else {
-            // Insert new record
-            $sql = "INSERT INTO sub_activity (activity_id, sub_activity_name, sub_activity_price, sub_activity_image) 
-                    VALUES (:activity_id, :sub_activity_name, :sub_activity_price, :sub_activity_image)";
+            // Insert new sub-activity
+            $sql = "INSERT INTO sub_activity (activity_id, sub_act_id, sub_activity_price, sub_activity_image) 
+                    VALUES (:activity_id, :sub_act_id, :sub_activity_price, :sub_activity_image)";
+            
             $stmt = $conn->prepare($sql);
-            $stmt->execute([
+            $params = [
                 'activity_id' => $activity_id,
-                'sub_activity_name' => $sub_activity_name,
+                'sub_act_id' => $sub_act_id,
                 'sub_activity_price' => $sub_activity_price,
-                'sub_activity_image' => $imagePath // This will be null if no new image is uploaded
-            ]);
-            $_SESSION['sub_activity_success_message'] = "Sub-activity added successfully!";
+                'sub_activity_image' => $imagePath
+            ];
+            
+            // Execute the statement and check for errors
+            if ($stmt->execute($params)) {
+                $_SESSION['sub_activity_success_message'] = "Sub-activity added successfully!";
+            } else {
+                // Log the error message
+                $_SESSION['sub_activity_error_message'] = "Failed to add sub-activity: " . implode(", ", $stmt->errorInfo());
+            }
         }
     } else {
         $_SESSION['sub_activity_error_message'] = implode(", ", $errors);
     }
     
     // Redirect to prevent form resubmission
-    header("Location: " . $_SERVER['PHP_SELF'] . "?section=sub-activities");
+    header("Location: " . $_SERVER['PHP_SELF']);
     exit();
 }
+
 // Fetch users from database
 function getUsers() {
     global $conn;
@@ -203,8 +226,7 @@ function getSubActivities() {
 
 $subActivities = getSubActivities();
 
-?>
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -613,7 +635,7 @@ $subActivities = getSubActivities();
     <script>
         setTimeout(function() {
             document.getElementById('error-message').style.display = 'none';
-        }, 2000); // Hide after 2 seconds
+        }, 5000); // Hide after 5 seconds
     </script>
 <?php endif; ?>
 
@@ -627,51 +649,65 @@ $subActivities = getSubActivities();
     <script>
         setTimeout(function() {
             document.getElementById('success-message').style.display = 'none';
-        }, 2000); // Hide after 2 seconds
+        }, 5000); // Hide after 5 seconds
     </script>
 <?php endif; ?>
-                <!-- Add sub-activity form -->
-                <div id="add-sub-activity-form" style="display: none; margin-bottom: 20px;">
-                    <form method="POST" class="form-container" enctype="multipart/form-data">
-                        <input type="hidden" name="active_section" value="sub-activities">
-                        <input type="hidden" name="sub_activity_id" value="">
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <select name="activity_id" required 
-                                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                           background: rgba(255,255,255,0.1); color: white;">
-                                <option value="">Select Activity</option>
-                                <?php foreach ($activities as $activity): ?>
-                                    <option value="<?php echo $activity['activity_id']; ?>">
-                                        <?php echo htmlspecialchars($activity['activity_type']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <input type="text" name="sub_activity_name" placeholder="Enter Sub-Activity Name" required
-                                   style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                          background: rgba(255,255,255,0.1); color: white;">
-                            <input type="number" name="sub_activity_price" placeholder="Price" step="0.01" required
-                                   style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                          background: rgba(255,255,255,0.1); color: white;">
-                            <input type="file" name="sub_activity_image" 
-                                   style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                          background: rgba(255,255,255,0.1); color: white;">
-                            <button type="submit" class="btn btn-primary">Save Sub-Activity</button>
-                            <button type="button" class="btn btn-secondary" id="cancel-sub-activity-btn">Cancel</button>
-                        </div>
-                        <!-- Add existing image display -->
-                        <div id="existing-image-container" style="margin-top: 10px;">
-                            <label>Existing Image:</label>
-                            <img id="existing-image" src="" alt="Existing Sub-Activity Image" style="max-width: 60px; height:70px; margin-left: 10px; display: none;">
-                            <p style="color: gray;">Choose a new image if you want to replace the existing one.</p>
-                        </div>
-                    </form>
+               <!-- Add sub-activity form -->
+<div id="add-sub-activity-form" style="display: none; margin-bottom: 20px;">
+    <form method="POST" class="form-container" enctype="multipart/form-data" action="manager_sub_activities.php">
+        <input type="hidden" name="sub_activity_id" value="">
+        <input type="hidden" name="current_image" value="">
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+            <select name="activity_id" required 
+                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
+                           background: rgba(255,255,255,0.1); color: white;">
+                <option value="">Select Activity</option>
+                <?php foreach ($activities as $activity): ?>
+                    <option value="<?php echo $activity['activity_id']; ?>">
+                        <?php echo htmlspecialchars($activity['activity_type']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <select name="sub_act_id" required 
+                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
+                           background: rgba(255,255,255,0.1); color: white;">
+                <option value="">Select Sub-Activity</option>
+                <!-- This will be populated dynamically based on the selected activity -->
+            </select>
+            <div style="flex: 1; min-width: 200px;">
+                <input type="number" id="sub_activity_price" name="sub_activity_price" placeholder="Price" step="0.01" required
+                       style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
+                              background: rgba(255,255,255,0.1); color: white;">
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+                <div id="file-input-container">
+                    <input type="file" id="sub_activity_image" name="sub_activity_image"
+                           style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
+                                  background: rgba(255,255,255,0.1); color: white;">
                 </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Sub-Activity</button>
+            <button type="button" class="btn btn-secondary" id="cancel-sub-activity-btn">Cancel</button>
+        <!-- Add this new div for image preview -->
+<div id="image-preview-container" style="display: none; margin-top: 10px;">
+    <p style="color: white; font-size: 0.9em;">Current Image:</p>
+    <img id="current-image" src="" alt="Sub-Activity Image" style="width: 60px; height: auto; border-radius: 5px; margin: 5px 0;">
+    <p style="color: #2ecc71; font-size: 0.9em;">* Uploading a new image is optional when editing</p>
+</div>
+        </div>
+    </form>
+</div>
+
+
+<div id="selected-sub-activity-name" style="margin-top: 10px; color: white;">
+    Selected Sub-Activity: <span id="sub-activity-name-display"></span>
+</div>
 
                 <!-- Sub-activities table -->
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Activity Type</th>
                             <th>Sub-Activity Name</th>
                             <th>Price</th>
@@ -682,9 +718,17 @@ $subActivities = getSubActivities();
                     <tbody>
                         <?php foreach ($subActivities as $subActivity): ?>
                             <tr>
-                                <td><?php echo $subActivity['sub_activity_id']; ?></td>
                                 <td><?php echo htmlspecialchars($subActivity['activity_type']); ?></td>
-                                <td><?php echo htmlspecialchars($subActivity['sub_activity_name']); ?></td>
+                                
+                                <?php
+                                // Fetch the sub_act_name from the sub_activity_name table
+                                $stmt = $conn->prepare("SELECT sub_act_name FROM sub_activity_name WHERE sub_act_id = :sub_act_id");
+                                $stmt->execute(['sub_act_id' => $subActivity['sub_act_id']]);
+                                $subActNameResult = $stmt->fetch(PDO::FETCH_ASSOC);
+                                $subActName = $subActNameResult ? htmlspecialchars($subActNameResult['sub_act_name']) : 'Unknown';
+                                ?>
+                                
+                                <td><?php echo $subActName; ?></td>
                                 <td>₹<?php echo number_format($subActivity['sub_activity_price']); ?></td>
                                 <td><img src="<?php echo $subActivity['sub_activity_image']; ?>" alt="Sub-Activity Image" style="width: 50px; height: auto;"></td>
                                 <td>
@@ -700,62 +744,77 @@ $subActivities = getSubActivities();
             </section>
         </div>
     </main>
-
-    
     <!-- Add JavaScript for navigation -->
     <script>
 
         // Add sub-activity form toggle functionality
         document.getElementById('add-sub-activity-btn').addEventListener('click', function() {
+            // Reset the form completely before showing it
+            resetSubActivityForm();
+            
+            // Then show the form and hide the add button
             document.getElementById('add-sub-activity-form').style.display = 'block';
-            this.style.display = 'none';
+            this.style.display = 'none';                
         });
 
         document.getElementById('cancel-sub-activity-btn').addEventListener('click', function() {
-            document.getElementById('add-sub-activity-form').style.display = 'none';
-            document.getElementById('add-sub-activity-btn').style.display = 'block';
-        });
-
-        // Form validation
-    document.querySelector('form').addEventListener('submit', function(e) {
-        const subActivityName = document.querySelector('input[name="sub_activity_name"]').value;
-        const price = document.querySelector('input[name="sub_activity_price"]').value;
-        const imageInput = document.querySelector('input[name="sub_activity_image"]');
-        
-        // Name validation
-        const nameRegex = /^[A-Za-z\s]{3,}$/;
-        if (!nameRegex.test(subActivityName)) {
-            e.preventDefault();
-            alert('Sub-activity name must be at least 3 characters long and contain only letters and spaces');
-            return;
-        }
-
-        // Price validation
-        const priceValue = parseFloat(price);
-        if (isNaN(priceValue) || priceValue < 0 || priceValue > 3000) {
-            e.preventDefault();
-            alert('Price must be between 0 and 3000');
-            return;
-        }
-
-        // Image validation
-        if (imageInput.files.length > 0) {
-            const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-            if (!allowedTypes.includes(imageInput.files[0].type)) {
-                e.preventDefault();
-                alert('Only JPG, JPEG, and PNG files are allowed');
-                return;
+    // First hide the form
+    document.getElementById('add-sub-activity-form').style.display = 'none';
+    
+    // Then show the add button
+    document.getElementById('add-sub-activity-btn').style.display = 'block';
+    
+    // Finally reset the form (after it's hidden)
+    resetSubActivityForm();
+});
+        // Fetch sub-activities based on selected activity
+document.querySelector('select[name="activity_id"]').addEventListener('change', async function() {
+    const activityId = this.value;
+    const subActivitySelect = document.querySelector('select[name="sub_act_id"]');
+    const subActivityNameDisplay = document.getElementById('sub-activity-name-display');
+    
+    // Clear existing options
+    subActivitySelect.innerHTML = '<option value="">Select Sub-Activity</option>';
+    subActivityNameDisplay.textContent = ''; // Clear displayed name
+    
+    if (activityId) {
+        try {
+            const response = await fetch(`get_sub_activities.php?activity_id=${activityId}`);
+            const subActivities = await response.json();
+            
+            if (subActivities.length > 0) {
+                subActivities.forEach(subActivity => {
+                    const option = document.createElement('option');
+                    option.value = subActivity.sub_act_id;
+                    option.textContent = subActivity.sub_act_name;
+                    subActivitySelect.appendChild(option);
+                });
+            } else {
+                // No sub-activities found for this activity
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "No sub-activities found";
+                subActivitySelect.appendChild(option);
             }
+        } catch (error) {
+            console.error('Error fetching sub-activities:', error);
         }
-    });
+    }
+});
 
-    // Edit functionality
+// Update the displayed sub-activity name when a sub-activity is selected
+document.querySelector('select[name="sub_act_id"]').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const subActivityNameDisplay = document.getElementById('sub-activity-name-display');
+    subActivityNameDisplay.textContent = selectedOption.text; // Display the selected sub-activity name
+});
+
+// Edit functionality
 document.querySelectorAll('.btn-edit').forEach(button => {
     button.addEventListener('click', async function() {
         const subActivityId = this.dataset.subactivityid;
         
         try {
-            // Fetch sub-activity details
             const response = await fetch(`edit_sub_activity.php?id=${subActivityId}`);
             const result = await response.json();
             
@@ -763,30 +822,43 @@ document.querySelectorAll('.btn-edit').forEach(button => {
                 const subActivity = result.data;
                 
                 // Show the form and update its values
-                const form = document.querySelector('#add-sub-activity-form');
+                const form = document.getElementById('add-sub-activity-form');
                 form.style.display = 'block';
                 document.getElementById('add-sub-activity-btn').style.display = 'none';
                 
                 // Update form fields
-                form.querySelector('select[name="activity_id"]').value = subActivity.activity_id;
-                form.querySelector('input[name="sub_activity_name"]').value = subActivity.sub_activity_name;
+                const activitySelect = form.querySelector('select[name="activity_id"]');
+                activitySelect.value = subActivity.activity_id;
+                
+                // Set the current image value in the hidden input
+                form.querySelector('input[name="current_image"]').value = subActivity.sub_activity_image;
+                
+                // Remove required attribute from file input when editing
+                form.querySelector('input[name="sub_activity_image"]').removeAttribute('required');
+                
+                // Trigger the activity change event to load sub-activities
+                const changeEvent = new Event('change');
+                activitySelect.dispatchEvent(changeEvent);
+                
+                // Set a timeout to make sure sub-activities are loaded before setting the value
+                setTimeout(() => {
+                    const subActSelect = form.querySelector('select[name="sub_act_id"]');
+                    subActSelect.value = subActivity.sub_act_id;
+                    
+                    // Trigger change event to update displayed name
+                    subActSelect.dispatchEvent(new Event('change'));
+                }, 500);
+                
                 form.querySelector('input[name="sub_activity_price"]').value = subActivity.sub_activity_price;
                 
-                // Populate hidden field for sub_activity_id
-                form.querySelector('input[name="sub_activity_id"]').value = subActivityId; // Set the hidden field value
+                // Set hidden field for sub_activity_id
+                form.querySelector('input[name="sub_activity_id"]').value = subActivityId;
                 
-                // Set the existing image source
-                const existingImage = document.getElementById('existing-image');
-                existingImage.src = subActivity.sub_activity_image; // Set the existing image path
-                
-                // Ensure the image is visible
-                existingImage.style.display = 'block'; // Make sure the image is displayed
-                
-                // Update form action
-                form.action = 'edit_sub_activity.php';
-
-                // Scroll to the top of the page
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                // Set the current image path in the image preview
+                const imagePreview = document.getElementById('image-preview-container');
+                const currentImage = document.getElementById('current-image');
+                currentImage.src = subActivity.sub_activity_image;
+                imagePreview.style.display = 'block'; // Show the image preview
             } else {
                 alert('Failed to fetch sub-activity details');
             }
@@ -828,6 +900,39 @@ document.querySelectorAll('.btn-danger').forEach(button => {
         }
     });
 });
+
+// Update the reset form functionality
+function resetSubActivityForm() {
+    // Get the form element
+    const form = document.getElementById('add-sub-activity-form').querySelector('form');
+    
+    // Use the native form reset method
+    form.reset();
+    
+    // Clear any hidden values
+    form.querySelector('input[name="sub_activity_id"]').value = '';
+    form.querySelector('input[name="current_image"]').value = '';
+    
+    // Reset file input required attribute for new entries
+    const fileInput = form.querySelector('input[name="sub_activity_image"]');
+    fileInput.setAttribute('required', 'required');
+    
+    // Hide the image preview container and clear the image source
+    const imagePreview = document.getElementById('image-preview-container');
+    imagePreview.style.display = 'none';
+    document.getElementById('current-image').src = '';
+    
+    // Clear the displayed sub-activity name
+    document.getElementById('sub-activity-name-display').textContent = '';
+    
+    // Reset the select elements to their default state
+    const activitySelect = form.querySelector('select[name="activity_id"]');
+    const subActivitySelect = form.querySelector('select[name="sub_act_id"]');
+    
+    activitySelect.selectedIndex = 0;
+    subActivitySelect.innerHTML = '<option value="">Select Sub-Activity</option>';
+}
+
     </script>
     
 </body>

@@ -604,7 +604,6 @@ $subActivities = getSubActivities();
             <header class="dashboard-header">
                 <h1>Activity Management</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary" id="add-activity-btn">Add New Activity</button>
                     <div class="notifications">
                         <span class="notifications-icon">🔔</span>
                         <span class="notifications-badge">3</span>
@@ -622,42 +621,21 @@ $subActivities = getSubActivities();
             </header>
 
             <section class="section-content">
-                <!-- Add this form section -->
-                <div id="add-activity-form" style="display: none; margin-bottom: 20px;">
-                    <form method="POST" class="form-container" id="activityForm">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div class="input-group">
-                                <input type="text" 
-                                       name="activity_type" 
-                                       id="activity_type"
-                                       placeholder="Enter Activity Type" 
-                                       style="padding: 10px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                              background: rgba(255,255,255,0.1); color: white; width: 200px;">
-                            </div>
-                            <button type="submit" class="btn btn-primary">Save Activity</button>
-                            <button type="button" class="btn btn-secondary" id="cancel-activity-btn">Cancel</button>
-                        </div>
-                        <span class="error-message" id="activity-error" style="height: 20px; display: none;"></span>
-                    </form>
-                </div>
-
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Activity Type</th>
-                            <th>Actions</th>
+                            <th style="text-align: center;">Activity Type</th>
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($activities as $activity): ?>
                             <tr>
-                                <td><?php echo $activity['activity_id']; ?></td>
-                                <td><?php echo htmlspecialchars($activity['activity_type']); ?></td>
-                                <td>
-                                    <div class="action-buttons">
-                                        <button class="btn btn-edit" data-activityid="<?php echo $activity['activity_id']; ?>">Edit</button>
-                                        <button class="btn btn-danger" data-activityid="<?php echo $activity['activity_id']; ?>">Delete</button>
+                                <td style="text-align: center;"><?php echo htmlspecialchars($activity['activity_type']); ?></td>
+                                <td style="text-align: center;">
+                                    <div class="action-buttons" style="display: flex; justify-content: center;">
+                                        <button class="btn btn-edit" data-activityid="<?php echo $activity['activity_id']; ?>" disabled style="cursor: not-allowed;">Edit</button>
+                                        <button class="btn btn-danger" data-activityid="<?php echo $activity['activity_id']; ?>" disabled style="cursor: not-allowed;">Delete</button>
                                     </div>
                                 </td>
                             </tr>

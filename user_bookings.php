@@ -16,7 +16,8 @@ $user_email = $_SESSION['email']; // Ensure this is set from the session
 $stmt = $conn->prepare("
     SELECT 
         b.booking_id,
-        sa.sub_activity_name,
+        sa.sub_activity_id,
+        san.sub_act_name AS sub_activity_name,
         a.activity_type,
         DATE_FORMAT(ts.slot_date, '%d %M %Y') as formatted_date,
         TIME_FORMAT(ts.slot_start_time, '%l:%i %p') as start_time,
@@ -26,6 +27,7 @@ $stmt = $conn->prepare("
         TIME_FORMAT(b.booking_time, '%l:%i %p') as booking_time
     FROM booking b
     JOIN sub_activity sa ON b.sub_activity_id = sa.sub_activity_id
+    JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
     JOIN activity a ON sa.activity_id = a.activity_id
     JOIN timeslots ts ON b.slot_id = ts.slot_id
     JOIN payment p ON b.booking_id = p.booking_id
@@ -34,6 +36,29 @@ $stmt = $conn->prepare("
 ");
 $stmt->execute([$_SESSION['user_id']]);
 $bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// After the existing bookings query, add this new query for events
+$stmt = $conn->prepare("
+    SELECT 
+        er.event_reg_id,
+        e.event_title,
+        e.event_description,
+        DATE_FORMAT(e.event_date, '%d %M %Y') as formatted_date,
+        TIME_FORMAT(e.event_time, '%l:%i %p') as event_time,
+        e.event_location,
+        e.event_price,
+        a.activity_type,
+        DATE_FORMAT(p.payment_date, '%d %M %Y') as registration_date,
+        TIME_FORMAT(p.payment_time, '%l:%i %p') as registration_time
+    FROM event_registration er
+    JOIN events e ON er.event_id = e.event_id
+    JOIN activity a ON e.activity_id = a.activity_id
+    JOIN payment p ON er.event_reg_id = p.event_reg_id
+    WHERE er.user_id = ?
+    ORDER BY e.event_date DESC, e.event_time DESC
+");
+$stmt->execute([$_SESSION['user_id']]);
+$event_registrations = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 try {
     $query = "SELECT u.*, m.membership_type 
@@ -90,6 +115,7 @@ error_log("Starting profile update process");
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Bookings</title>
+    <link rel="icon" href="img/logo3.png" type="image/png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Aboreto&display=swap');
@@ -533,6 +559,64 @@ error_log("Starting profile update process");
                                 Booked on <?php echo $booking['booking_date']; ?> at <?php echo $booking['booking_time']; ?>
                             </div>
                             -->
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+        <h1 class="page-title">My Event Registrations</h1>
+
+        <?php if (empty($event_registrations)): ?>
+            <div class="no-bookings">
+                <i class="fas fa-calendar-check"></i>
+                <h3>No Event Registrations Found</h3>
+                <p>You haven't registered for any events yet. Check out our upcoming events!</p>
+                <a href="user_events.php" class="book-now-btn">View Events</a>
+            </div>
+        <?php else: ?>
+            <div class="bookings-grid">
+                <?php foreach ($event_registrations as $event): 
+                    $isUpcoming = strtotime($event['formatted_date']) >= strtotime('today');
+                ?>
+                    <div class="booking-card">
+                        <div class="booking-header">
+                            <div class="activity-name"><?php echo htmlspecialchars($event['event_title']); ?></div>
+                        </div>
+                        
+                        <div class="booking-details">
+                            <div class="detail-row">
+                                <span class="detail-label">Activity Type:</span>
+                                <span class="detail-value"><?php echo htmlspecialchars($event['activity_type']); ?></span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Date:</span>
+                                <span class="detail-value"><?php echo $event['formatted_date']; ?></span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Time:</span>
+                                <span class="detail-value"><?php echo $event['event_time']; ?></span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Location:</span>
+                                <span class="detail-value"><?php echo htmlspecialchars($event['event_location']); ?></span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Status:</span>
+                                <span class="status-badge <?php echo $isUpcoming ? 'status-upcoming' : 'status-completed'; ?>">
+                                    <?php echo $isUpcoming ? 'Upcoming' : 'Completed'; ?>
+                                </span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Registered on:</span>
+                                <span class="detail-value">
+                                    <?php echo $event['registration_date'] . ' at ' . $event['registration_time']; ?>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="booking-footer">
+                            <div class="price">₹<?php echo number_format($event['event_price'], 2); ?></div>
                         </div>
                     </div>
                 <?php endforeach; ?>

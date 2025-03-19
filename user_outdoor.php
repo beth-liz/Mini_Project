@@ -8,45 +8,77 @@ if (!isset($_SESSION['email'])) {
     exit();
 }
 
-// First, update the SQL query to get all dates and their time slots
-$sql = "SELECT sa.sub_activity_id, sa.sub_activity_name, sa.sub_activity_image, sa.sub_activity_price, 
-        GROUP_CONCAT(DISTINCT 
-            DATE_FORMAT(ts.slot_date, '%Y-%m-%d')
-            ORDER BY ts.slot_date ASC
-        SEPARATOR '|') as available_dates,
-        GROUP_CONCAT(
-            CONCAT(
-                DATE_FORMAT(ts.slot_date, '%Y-%m-%d'), ':', 
-                TIME_FORMAT(ts.slot_start_time, '%H:%i'), '|',
-                TIME_FORMAT(ts.slot_end_time, '%H:%i')
-            ) SEPARATOR ';'
-        ) as all_slots
-        FROM sub_activity sa
-        LEFT JOIN timeslots ts ON sa.sub_activity_id = ts.sub_activity_id 
-        AND ts.slot_date >= CURDATE() 
-        AND ts.slot_full = 0
-        WHERE sa.activity_id = 1
-        GROUP BY sa.sub_activity_id";
-$stmt = $conn->prepare($sql);
-$stmt->execute();
-$subActivities = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Fetch membership_id from the database
+$user_email = $_SESSION['email']; // Assuming the email is used to identify the user
+$conn = new mysqli('localhost', 'root', '', 'arenax'); // Update with your actual database credentials
 
-// Debug output
-echo "<!-- Debug output:\n";
-var_dump($subActivities);
-echo "\n-->";
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
 
-// Modify the existing SQL query to also fetch the user's name
-$user_email = $_SESSION['email']; // Define $user_email from session
+// Fetch user's membership ID and name
 $sql = "SELECT membership_id, name FROM users WHERE email = '$user_email'";
 $result = $conn->query($sql);
 $user_name = "Profile"; // Default value
+$membership_id = 0; // Default value
 
-if ($result->rowCount() > 0) {
-    $row = $result->fetch(PDO::FETCH_ASSOC);
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
     $membership_id = $row['membership_id'];
     $user_name = $row['name'];
 }
+
+// Fetch outdoor activities and their available time slots
+$sql = "SELECT sa.sub_activity_id, san.sub_act_name, sa.sub_activity_image, sa.sub_activity_price, 
+        GROUP_CONCAT(DISTINCT 
+            CASE 
+                WHEN ts.slot_date >= CURDATE() 
+                AND (ts.slot_date > CURDATE() 
+                    OR (ts.slot_date = CURDATE() AND ts.slot_end_time >= CURTIME()))
+                AND ts.current_participants < ts.max_participants
+                THEN DATE_FORMAT(ts.slot_date, '%Y-%m-%d')
+            END
+            ORDER BY ts.slot_date ASC
+        SEPARATOR '|') as available_dates,
+        GROUP_CONCAT(
+            CASE 
+                WHEN ts.slot_date >= CURDATE() 
+                AND (ts.slot_date > CURDATE() 
+                    OR (ts.slot_date = CURDATE() AND ts.slot_end_time >= CURTIME()))
+                AND ts.current_participants < ts.max_participants
+                THEN CONCAT(
+                    DATE_FORMAT(ts.slot_date, '%Y-%m-%d'), ':', 
+                    TIME_FORMAT(ts.slot_start_time, '%H:%i'), '|',
+                    TIME_FORMAT(ts.slot_end_time, '%H:%i')
+                )
+            END
+            SEPARATOR ';'
+        ) as all_slots
+        FROM sub_activity sa
+        LEFT JOIN timeslots ts ON sa.sub_activity_id = ts.sub_activity_id 
+        LEFT JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
+        WHERE sa.activity_id = 1  -- Assuming 1 is the ID for outdoor activities
+        AND (ts.current_participants IS NULL OR ts.current_participants < ts.max_participants)
+        GROUP BY sa.sub_activity_id";
+
+try {
+    $stmt = $conn->prepare($sql);
+    $stmt->execute();
+    
+    // Use get_result() to fetch the results
+    $result = $stmt->get_result();
+    $activities = []; // Initialize the activities array
+
+    // Fetch all rows into the activities array
+    while ($row = $result->fetch_assoc()) {
+        $activities[] = $row;
+    }
+} catch (PDOException $e) {
+    error_log("Error in user_outdoor.php: " . $e->getMessage());
+    // Handle error appropriately
+}
+
+$conn->close(); // Close the database connection
 ?>
 
 <!DOCTYPE html>
@@ -847,6 +879,23 @@ footer {
     background: #2c3e50;
     color: white;
 }
+
+/* Add these styles for the date picker */
+input[type="date"] {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 5px;
+    font-family: 'Aboreto', cursive;
+    margin-bottom: 10px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
     </style>
 </head>
 <body>
@@ -864,15 +913,15 @@ footer {
             </ul>
         </nav>
         <div style="margin-right: 20px; position: relative;">
-    <button class="log"><?php echo htmlspecialchars($user_name); ?> <i class="fas fa-caret-down"></i></button>
-    <div class="dropdown">
-        <a href="user_profile.php">PROFILE</a>
-        <a href="user_bookings.php">BOOKINGS</a>
-        <a href="user_calendar.php">CALENDER</a>
-        <a href="user_payment_history.php">PAYMENT HISTORY</a>
-        <a href="logout.php">LOGOUT</a>
-    </div>
-</div>
+            <button class="log"><?php echo htmlspecialchars($user_name); ?> <i class="fas fa-caret-down"></i></button>
+            <div class="dropdown">
+                <a href="user_profile.php">PROFILE</a>
+                <a href="user_bookings.php">BOOKINGS</a>
+                <a href="user_calendar.php">CALENDER</a>
+                <a href="user_payment_history.php">PAYMENT HISTORY</a>
+                <a href="logout.php">LOGOUT</a>
+            </div>
+        </div>
     </header>
 
     <script>
@@ -916,15 +965,19 @@ footer {
         <h2>OUR ACTIVITIES</h2>
     </div>
     <section class="image-grid">
-        <?php foreach ($subActivities as $subActivity): ?>
-            <div class="image">
-                <img src="<?php echo htmlspecialchars($subActivity['sub_activity_image']); ?>" alt="<?php echo htmlspecialchars($subActivity['sub_activity_name']); ?>">
-                <div class="overlay">
-                    <h3><?php echo htmlspecialchars($subActivity['sub_activity_name']); ?></h3>
-                    <button class="book-now" onclick="openBookingModal(<?php echo htmlspecialchars(json_encode($subActivity)); ?>)">Book Now</button>
+        <?php if (!empty($activities)): ?>
+            <?php foreach ($activities as $activity): ?>
+                <div class="image">
+                    <img src="<?php echo htmlspecialchars($activity['sub_activity_image']); ?>" alt="<?php echo htmlspecialchars($activity['sub_act_name']); ?>">
+                    <div class="overlay">
+                        <h3><?php echo htmlspecialchars($activity['sub_act_name']); ?></h3>
+                        <button class="book-now" onclick="openBookingModal(<?php echo htmlspecialchars(json_encode($activity)); ?>)">Book Now</button>
+                    </div>
                 </div>
-            </div>
-        <?php endforeach; ?>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p>No activities available.</p>
+        <?php endif; ?>
     </section>
 
     <!-- Update the modal HTML -->
@@ -944,11 +997,9 @@ footer {
                             <span id="modalActivityName"></span>
                         </div>
                         <div class="detail-row">
-                            <span class="detail-label">Available Dates:</span>
+                            <span class="detail-label">Select Date:</span>
                             <div id="dateContainer">
-                                <select id="dateSelect" class="time-slot-select">
-                                    <option value="">Select a date</option>
-                                </select>
+                                <input type="date" id="datePicker" class="time-slot-select">
                             </div>
                         </div>
                         <div class="detail-row">
@@ -1102,56 +1153,48 @@ function openBookingModal(activity) {
     const modalTitle = document.getElementById('modalTitle');
     const modalActivityName = document.getElementById('modalActivityName');
     const modalPrice = document.getElementById('modalPrice');
-    const dateSelect = document.getElementById('dateSelect');
+    const datePicker = document.getElementById('datePicker');
     const timeSlotContainer = document.getElementById('timeSlotContainer');
     const proceedBtn = document.getElementById('proceedBtn');
 
-    // Store all slots data
-    window.allSlots = {};
-    
     // Set the modal content
     modalImage.src = activity.sub_activity_image;
-    modalTitle.textContent = activity.sub_activity_name;
-    modalActivityName.textContent = activity.sub_activity_name;
+    modalTitle.textContent = activity.sub_act_name;
+    modalActivityName.textContent = activity.sub_act_name;
     modalPrice.textContent = activity.sub_activity_price;
 
     // Clear existing selections
-    dateSelect.innerHTML = '<option value="">Select a date</option>';
     timeSlotContainer.innerHTML = '';
     selectedTimeSlot = null;
     proceedBtn.disabled = true;
 
-    // Process and add dates
-    if (activity.available_dates) {
-        const dates = activity.available_dates.split('|').filter(date => date);
-        
-        if (dates.length === 0) {
-            dateSelect.innerHTML = '<option value="">No dates available</option>';
-            timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">No allotments have been made yet.</p>';
-        } else {
-            dates.forEach(date => {
-                const option = document.createElement('option');
-                option.value = date;
-                option.textContent = formatDate(date);
-                dateSelect.appendChild(option);
-            });
-        }
-    } else {
-        dateSelect.innerHTML = '<option value="">No dates available</option>';
-        timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">No allotments have been made yet.</p>';
-    }
+    // Set minimum date to today
+    const today = new Date().toISOString().split('T')[0];
+    datePicker.min = today;
+    datePicker.value = today;
+
+    // Remove existing event listener and add new one
+    datePicker.removeEventListener('change', handleDateChange);
+    datePicker.addEventListener('change', handleDateChange);
 
     // Show the modal
     modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
 
-    // Handle date selection
-    dateSelect.addEventListener('change', function() {
-        const selectedDate = this.value;
-        if (selectedDate) {
-            fetchTimeSlots(activity.sub_activity_id, selectedDate);
-        }
-    });
+    // Store the sub_activity_id for use in handleDateChange
+    datePicker.dataset.subActivityId = activity.sub_activity_id;
+
+    // Trigger initial time slots fetch
+    fetchTimeSlots(activity.sub_activity_id, today);
+}
+
+// Separate function to handle date changes
+function handleDateChange(event) {
+    const selectedDate = event.target.value;
+    const subActivityId = event.target.dataset.subActivityId;
+    if (selectedDate && subActivityId) {
+        fetchTimeSlots(subActivityId, selectedDate);
+    }
 }
 
 // Fetch time slots from the database based on selected date and sub-activity
@@ -1193,7 +1236,7 @@ function fetchTimeSlots(subActivityId, selectedDate) {
 }
 
 function proceedToPayment() {
-    const selectedDate = document.getElementById('dateSelect').value;
+    const selectedDate = document.getElementById('datePicker').value;
     const activityName = document.getElementById('modalActivityName').textContent;
     const price = document.getElementById('modalPrice').textContent;
     
