@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $user_email = $_SESSION['email']; // Ensure this is set from the session
 
-// Get user's bookings with activity details
+// Get user's regular bookings (existing code)
 $stmt = $conn->prepare("
     SELECT 
         b.booking_id,
@@ -23,21 +23,52 @@ $stmt = $conn->prepare("
         TIME_FORMAT(ts.slot_start_time, '%l:%i %p') as start_time,
         TIME_FORMAT(ts.slot_end_time, '%l:%i %p') as end_time,
         p.amount,
+        sa.sub_activity_price as original_price,
         DATE_FORMAT(b.booking_date, '%d %M %Y') as booking_date,
-        TIME_FORMAT(b.booking_time, '%l:%i %p') as booking_time
+        TIME_FORMAT(b.booking_time, '%l:%i %p') as booking_time,
+        'regular' as booking_type
     FROM booking b
     JOIN sub_activity sa ON b.sub_activity_id = sa.sub_activity_id
     JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
     JOIN activity a ON sa.activity_id = a.activity_id
     JOIN timeslots ts ON b.slot_id = ts.slot_id
-    JOIN payment p ON b.booking_id = p.booking_id
+    LEFT JOIN payment p ON b.booking_id = p.booking_id
     WHERE b.user_id = ?
-    ORDER BY ts.slot_date DESC, ts.slot_start_time DESC
 ");
 $stmt->execute([$_SESSION['user_id']]);
-$bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$regular_bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// After the existing bookings query, add this new query for events
+// Get user's recurring bookings
+$stmt = $conn->prepare("
+    SELECT 
+        rb.recurring_id,
+        rb.sub_activity_id,
+        san.sub_act_name AS sub_activity_name,
+        a.activity_type,
+        DATE_FORMAT(rb.start_date, '%d %M %Y') as start_date,
+        DATE_FORMAT(rb.end_date, '%d %M %Y') as end_date,
+        TIME_FORMAT(rb.booking_time, '%l:%i %p') as booking_time,
+        TIME_FORMAT(ADDTIME(rb.booking_time, '1:00:00'), '%l:%i %p') as end_time,
+        rb.selected_days,
+        rb.status,
+        DATE_FORMAT(rb.created_at, '%d %M %Y') as created_date,
+        TIME_FORMAT(rb.created_at, '%l:%i %p') as created_time,
+        'recurring' as booking_type,
+        sa.sub_activity_price as price_per_session
+    FROM recurring_bookings rb
+    JOIN sub_activity sa ON rb.sub_activity_id = sa.sub_activity_id
+    JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
+    JOIN activity a ON sa.activity_id = a.activity_id
+    WHERE rb.user_id = ?
+    ORDER BY rb.start_date DESC
+");
+$stmt->execute([$_SESSION['user_id']]);
+$recurring_bookings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Combine all bookings
+$all_bookings = array_merge($regular_bookings, $recurring_bookings);
+
+// After the existing bookings query, update this query for events
 $stmt = $conn->prepare("
     SELECT 
         er.event_reg_id,
@@ -48,12 +79,15 @@ $stmt = $conn->prepare("
         e.event_location,
         e.event_price,
         a.activity_type,
-        DATE_FORMAT(p.payment_date, '%d %M %Y') as registration_date,
-        TIME_FORMAT(p.payment_time, '%l:%i %p') as registration_time
+        CASE 
+            WHEN u.membership_id = (SELECT membership_id FROM memberships WHERE membership_type = 'premium') 
+            THEN 'Premium Registration'
+            ELSE 'Standard Registration'
+        END as registration_type
     FROM event_registration er
     JOIN events e ON er.event_id = e.event_id
     JOIN activity a ON e.activity_id = a.activity_id
-    JOIN payment p ON er.event_reg_id = p.event_reg_id
+    JOIN users u ON er.user_id = u.user_id
     WHERE er.user_id = ?
     ORDER BY e.event_date DESC, e.event_time DESC
 ");
@@ -503,7 +537,7 @@ error_log("Starting profile update process");
             </div>
         <?php endif; ?>
 
-        <?php if (empty($bookings)): ?>
+        <?php if (empty($all_bookings)): ?>
             <div class="no-bookings">
                 <i class="fas fa-calendar-alt"></i>
                 <h3>No Bookings Found</h3>
@@ -512,55 +546,125 @@ error_log("Starting profile update process");
             </div>
         <?php else: ?>
             <div class="bookings-grid">
-                <?php foreach ($bookings as $booking): 
-                    $isUpcoming = strtotime($booking['formatted_date']) >= strtotime('today');
-                ?>
-                    <div class="booking-card">
-                        <div class="booking-header">
-                            <div class="activity-name"><?php echo strtoupper(htmlspecialchars($booking['sub_activity_name'])); ?></div>
-                            <!-- 
-                            <div class="booking-id">#<?php echo $booking['booking_id']; ?></div>
-                            -->
-                        </div>
-                        
-                        <div class="booking-details">
-                            <div class="detail-row">
-                                <span class="detail-label">Activity Type:</span>
-                                <span class="detail-value"><?php echo htmlspecialchars($booking['activity_type']); ?></span>
+                <?php foreach ($all_bookings as $booking): 
+                    if ($booking['booking_type'] === 'regular') {
+                        $isUpcoming = strtotime($booking['formatted_date']) >= strtotime('today');
+                        // Regular booking display
+                        ?>
+                        <div class="booking-card">
+                            <div class="booking-header">
+                                <div class="activity-name"><?php echo strtoupper(htmlspecialchars($booking['sub_activity_name'])); ?></div>
+                                <!-- 
+                                <div class="booking-id">#<?php echo $booking['booking_id']; ?></div>
+                                -->
                             </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Date:</span>
-                                <span class="detail-value"><?php echo $booking['formatted_date']; ?></span>
+                            
+                            <div class="booking-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">Activity Type:</span>
+                                    <span class="detail-value"><?php echo htmlspecialchars($booking['activity_type']); ?></span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Date:</span>
+                                    <span class="detail-value"><?php echo $booking['formatted_date']; ?></span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Time:</span>
+                                    <span class="detail-value">
+                                        <?php echo $booking['start_time'] . ' - ' . $booking['end_time']; ?>
+                                    </span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Status:</span>
+                                    <span class="status-badge <?php echo $isUpcoming ? 'status-upcoming' : 'status-completed'; ?>">
+                                        <?php echo $isUpcoming ? 'Upcoming' : 'Completed'; ?>
+                                    </span>
+                                </div>
+                                <div class="detail-row" style="padding-left: 0px;">
+                                    <span class="detail-label">Booked on:</span>
+                                    <span class="detail-value">
+                                        <?php echo $booking['booking_date'] . ' at ' . $booking['booking_time']; ?>
+                                    </span>
+                                </div>
                             </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Time:</span>
-                                <span class="detail-value">
-                                    <?php echo $booking['start_time'] . ' - ' . $booking['end_time']; ?>
-                                </span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Status:</span>
-                                <span class="status-badge <?php echo $isUpcoming ? 'status-upcoming' : 'status-completed'; ?>">
-                                    <?php echo $isUpcoming ? 'Upcoming' : 'Completed'; ?>
-                                </span>
-                            </div>
-                            <div class="detail-row" style="padding-left: 0px;">
-                                <span class="detail-label">Booked on:</span>
-                                <span class="detail-value">
-                                    <?php echo $booking['booking_date'] . ' at ' . $booking['booking_time']; ?>
-                                </span>
-                            </div>
-                        </div>
 
-                        <div class="booking-footer">
-                            <div class="price">₹<?php echo number_format($booking['amount'], 2); ?></div>
-                            <!-- 
-                            <div class="booking-date">
-                                Booked on <?php echo $booking['booking_date']; ?> at <?php echo $booking['booking_time']; ?>
+                            <div class="booking-footer">
+                                <div class="price">
+                                    <?php 
+                                    if (isset($booking['amount']) && $booking['amount'] !== null) {
+                                        echo '₹' . number_format($booking['amount'], 2);
+                                    } else {
+                                        echo '₹' . number_format($booking['original_price'], 2) . ' (Membership benefit)';
+                                    }
+                                    ?>
+                                </div>
+                                <!-- 
+                                <div class="booking-date">
+                                    Booked on <?php echo $booking['booking_date']; ?> at <?php echo $booking['booking_time']; ?>
+                                </div>
+                                -->
                             </div>
-                            -->
                         </div>
-                    </div>
+                    <?php } else { 
+                        // Recurring booking display
+                        $isActive = $booking['status'] === 'active';
+                        $dayNames = [
+                            '0' => 'Sunday', '1' => 'Monday', '2' => 'Tuesday',
+                            '3' => 'Wednesday', '4' => 'Thursday', '5' => 'Friday', '6' => 'Saturday'
+                        ];
+                        $selectedDays = json_decode($booking['selected_days']);
+                        $daysList = array_map(function($day) use ($dayNames) {
+                            return $dayNames[$day];
+                        }, $selectedDays);
+                        ?>
+                        <div class="booking-card">
+                            <div class="booking-header">
+                                <div class="activity-name"><?php echo strtoupper(htmlspecialchars($booking['sub_activity_name'])); ?></div>
+                                <div class="booking-id">Recurring</div>
+                            </div>
+                            
+                            <div class="booking-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">Activity Type:</span>
+                                    <span class="detail-value"><?php echo htmlspecialchars($booking['activity_type']); ?></span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Period:</span>
+                                    <span class="detail-value">
+                                        <?php echo $booking['start_date'] . ' to ' . $booking['end_date']; ?>
+                                    </span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Time:</span>
+                                    <span class="detail-value">
+                                        <?php echo $booking['booking_time'] . ' - ' . $booking['end_time']; ?>
+                                    </span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Days:</span>
+                                    <span class="detail-value"><?php echo implode(', ', $daysList); ?></span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Status:</span>
+                                    <span class="status-badge <?php echo $isActive ? 'status-upcoming' : 'status-completed'; ?>">
+                                        <?php echo ucfirst($booking['status']); ?>
+                                    </span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Booked on:</span>
+                                    <span class="detail-value">
+                                        <?php echo $booking['created_date'] . ' at ' . $booking['created_time']; ?>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="booking-footer">
+                                <div class="price">
+                                    <?php echo '₹' . number_format($booking['price_per_session'], 2) . ' per session'; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php } ?>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
@@ -607,16 +711,18 @@ error_log("Starting profile update process");
                                     <?php echo $isUpcoming ? 'Upcoming' : 'Completed'; ?>
                                 </span>
                             </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Registered on:</span>
-                                <span class="detail-value">
-                                    <?php echo $event['registration_date'] . ' at ' . $event['registration_time']; ?>
-                                </span>
-                            </div>
                         </div>
 
                         <div class="booking-footer">
-                            <div class="price">₹<?php echo number_format($event['event_price'], 2); ?></div>
+                            <div class="price">
+                                <?php 
+                                if ($event['registration_type'] === 'Premium Registration') {
+                                    echo '<span style="color: #72aab0;">Premium Member - Free Entry</span>';
+                                } else {
+                                    echo '₹' . number_format($event['event_price'], 2);
+                                }
+                                ?>
+                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>

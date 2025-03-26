@@ -65,6 +65,7 @@ if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role']
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="main.js" defer type="module"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In Page</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -300,6 +301,55 @@ if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role']
             color: rgba(255, 255, 255, 0.8);
             text-decoration: underline;
         }
+
+        .separator {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .separator span {
+            color: white;
+            padding: 0 10px;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+
+        .separator::before,
+        .separator::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .google-btn {
+            width: 100%;
+            padding: 12px;
+            background: white;
+            color: #757575;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .google-btn:hover {
+            background: #f1f1f1;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .google-btn img {
+            width: 18px;
+            height: 18px;
+        }
     </style>
 </head>
 <body>
@@ -341,6 +391,13 @@ if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role']
                 <a href="forgot_password.php" class="forgot-password">FORGOT PASSWORD?</a>
             </div>
             <button type="submit" class="login-btn">Sign In</button>
+            <div class="separator">
+                <span>OR</span>
+            </div>
+            <button type="button" id="google-login-btn" class="google-btn">
+                <img src="img/google.png" alt="Google logo">
+                Sign in with Google
+            </button>
             <div class="links" style="text-align: center;">
                 <p style="color: white; font-size: 14px;">DONT HAVE AN ACCOUNT? <a href="signup.php" style="color: #00bcd4; text-decoration: underline;">SIGN UP</a></p>
             </div>

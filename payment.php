@@ -22,31 +22,50 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
 // Validate POST data
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $activity = $_POST['activity'] ?? '';
+    $price = $_POST['price'] ?? '';
+    $booking_type = $_POST['booking_type'] ?? 'single';
+    $activity_id = $_POST['activity_id'] ?? '';
     $date = $_POST['date'] ?? '';
     $timeslot = $_POST['timeslot'] ?? '';
-    $price = $_POST['price'] ?? '';
 
-    // Get sub_activity_id and slot_id
-    $stmt = $conn->prepare("SELECT sa.sub_activity_id, ts.slot_id 
-                           FROM sub_activity sa 
-                           JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
-                           JOIN timeslots ts ON sa.sub_activity_id = ts.sub_activity_id 
-                           WHERE san.sub_act_name = ? 
-                           AND DATE(ts.slot_date) = ? 
-                           AND CONCAT(TIME_FORMAT(ts.slot_start_time, '%l:%i %p'), ' - ', 
-                               TIME_FORMAT(ts.slot_end_time, '%l:%i %p')) = ?");
-    $stmt->execute([$activity, $date, $timeslot]);
-    $booking_details = $stmt->fetch(PDO::FETCH_ASSOC);
-}
+    // Log the values for debugging
+    error_log("Activity ID: " . $activity_id);
+    error_log("Date: " . $date);
+    error_log("Timeslot: " . $timeslot);
+    error_log("Price: " . $price);
 
-// Process payment
-if (isset($_POST['process_payment'])) {
-    try {
-        $conn->beginTransaction();
+    if ($booking_type === 'single') {
+        // Get sub_activity_id and slot_id for single booking
+        $stmt = $conn->prepare("SELECT sa.sub_activity_id, ts.slot_id 
+                               FROM sub_activity sa 
+                               JOIN timeslots ts ON sa.sub_activity_id = ts.sub_activity_id 
+                               WHERE sa.sub_activity_id = ? 
+                               AND ts.slot_date = ? 
+                               AND ts.slot_start_time = ? 
+                               AND ts.slot_end_time = ?");
+
+        // Convert time format from "12:00 PM - 1:00 PM" to "12:00:00" format
+        $times = explode(' - ', $timeslot);
+        $start_time = date('H:i:s', strtotime($times[0]));
+        $end_time = date('H:i:s', strtotime($times[1]));
+
+        error_log("Activity ID: " . $activity_id);
+        error_log("Date: " . $date);
+        error_log("Start Time: " . $start_time);
+        error_log("End Time: " . $end_time);
+
+        $stmt->execute([$activity_id, $date, $start_time, $end_time]);
+        $booking_details = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$booking_details) {
+            error_log("No booking details found for the provided parameters.");
+            throw new Exception('Invalid booking details: No matching records found.');
+        }
 
         // Insert into booking table
         $stmt = $conn->prepare("INSERT INTO booking (user_id, sub_activity_id, slot_id, booking_date, booking_time) 
                               VALUES (?, ?, ?, CURDATE(), CURTIME())");
+        
         $stmt->execute([
             $user['user_id'],
             $booking_details['sub_activity_id'],
@@ -68,7 +87,7 @@ if (isset($_POST['process_payment'])) {
         
         // Generate the PDF bill
         generateBookingBill($user['user_id'], $booking_details['sub_activity_id'], $booking_details['slot_id'], 
-                           $booking_id, date('Y-m-d'), date('H:i:s'), $price, $bill_path, $conn);
+                           $booking_id, $date, $timeslot, $price, $bill_path, $conn);
 
         // Update booking with bill path
         $stmt = $conn->prepare("UPDATE booking SET bill = ? WHERE booking_id = ?");
@@ -95,155 +114,111 @@ if (isset($_POST['process_payment'])) {
         $notification_message = "Your booking for $activity on $date at $timeslot has been confirmed. Booking ID: $booking_id";
         $stmt->execute([$user['user_id'], "Booking Confirmation", $notification_message]);
 
-        $conn->commit();
+        // After ALL booking operations are complete, send email
+        sendBookingConfirmationEmail(
+            $user,
+            $activity,
+            $date,
+            $timeslot,
+            $booking_id,
+            $price,
+            $bill_path
+        );
+    } else {
+        // Store recurring booking details in session
+        $_SESSION['recurring_booking'] = [
+            'activity_id' => $_POST['activity_id'],
+            'activity_name' => $activity,
+            'start_date' => $_POST['start_date'],
+            'weeks' => $_POST['weeks'],
+            'selected_days' => $_POST['selected_days'],
+            'booking_time' => $_POST['booking_time'],
+            'total_sessions' => $_POST['total_sessions'],
+            'price_per_session' => $_POST['price_per_session'],
+            'total_price' => $price
+        ];
+    }
+}
 
-        // Send confirmation email using PHPMailer
-        // Create a new PHPMailer instance
-        $mail = new PHPMailer(true);
+// Process payment
+if (isset($_POST['process_payment']) && isset($_POST['razorpay_payment_id'])) {
+    try {
+        $conn->beginTransaction();
 
-        try {
-            // Server settings
-            $mail->isSMTP();
-            $mail->Host = 'smtp.gmail.com';
-            $mail->SMTPAuth = true;
-            $mail->Username = 'elizabethmaryabraham09@gmail.com'; // Your Gmail address
-            $mail->Password = 'xvec mfoh vkhp fabg'; // Your Gmail App Password
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = 587;
+        if ($booking_type === 'single') {
+            // Insert into booking table
+            $stmt = $conn->prepare("INSERT INTO booking (user_id, sub_activity_id, slot_id, booking_date, booking_time) 
+                                  VALUES (?, ?, ?, CURDATE(), CURTIME())");
+            $stmt->execute([
+                $user['user_id'],
+                $booking_details['sub_activity_id'],
+                $booking_details['slot_id']
+            ]);
+            $booking_id = $conn->lastInsertId();
 
-            // Recipients
-            $mail->setFrom('elizabethmaryabraham09@gmail.com', 'ArenaX');
-            $mail->addAddress($user['email'], $user['name']);
+            // Generate PDF bill
+            $bill_filename = 'booking_bill_' . $booking_id . '.pdf';
+            $bill_dir = __DIR__ . '/bills/'; // Use absolute path
+            
+            // Create directory if it doesn't exist
+            if (!file_exists($bill_dir)) {
+                mkdir($bill_dir, 0777, true);
+            }
+            
+            $bill_path = $bill_dir . $bill_filename;
+            $relative_bill_path = 'bills/' . $bill_filename; // For database storage
+            
+            // Generate the PDF bill
+            generateBookingBill($user['user_id'], $booking_details['sub_activity_id'], $booking_details['slot_id'], 
+                               $booking_id, $date, $timeslot, $price, $bill_path, $conn);
 
-            // Attach the bill
-            $mail->addAttachment($bill_path);
+            // Update booking with bill path
+            $stmt = $conn->prepare("UPDATE booking SET bill = ? WHERE booking_id = ?");
+            $stmt->execute([$relative_bill_path, $booking_id]);
 
-            // Content
-            $mail->isHTML(true);
-            $mail->Subject = "Booking Confirmation - ArenaX";
-            $mail->Body = "
-            <html>
-            <head>
-                <title>Booking Confirmation</title>
-            </head>
-            <body>
-                <h2>Thank you for your booking at ArenaX!</h2>
-                <p>Dear {$user['name']},</p>
-                <p>Your booking has been confirmed with the following details:</p>
-                <ul>
-                    <li>Activity: $activity</li>
-                    <li>Date: $date</li>
-                    <li>Time: $timeslot</li>
-                    <li>Amount Paid: ₹$price</li>
-                </ul>
-                <p>Booking ID: $booking_id</p>
-                <p>Please find your booking receipt attached to this email.</p>
-                <p>We look forward to seeing you!</p>
-                <br>
-                <p>Best regards,</p>
-                <p>ArenaX Team</p>
-            </body>
-            </html>";
+            // Insert into payment table
+            $stmt = $conn->prepare("INSERT INTO payment (user_id, amount, payment_date, payment_time, booking_id) 
+                                  VALUES (?, ?, CURDATE(), CURTIME(), ?)");
+            $stmt->execute([$user['user_id'], $price, $booking_id]);
 
-            $mail->send();
-        } catch (Exception $e) {
-            // Log the error but don't stop the process
-            error_log("Email could not be sent. Mailer Error: {$mail->ErrorInfo}");
+            // Update timeslot current participants and availability
+            $stmt = $conn->prepare("UPDATE timeslots 
+                                  SET current_participants = current_participants + 1,
+                                      slot_full = CASE 
+                                          WHEN current_participants + 1 >= max_participants THEN 1 
+                                          ELSE 0 
+                                      END 
+                                  WHERE slot_id = ?");
+            $stmt->execute([$booking_details['slot_id']]);
+
+            // Create notification for user
+            $stmt = $conn->prepare("INSERT INTO notification (user_id, title, message, created_at_date, created_at_time) 
+                                  VALUES (?, ?, ?, CURDATE(), CURTIME())");
+            $notification_message = "Your booking for $activity on $date at $timeslot has been confirmed. Booking ID: $booking_id";
+            $stmt->execute([$user['user_id'], "Booking Confirmation", $notification_message]);
+
+            // After ALL booking operations are complete, send email
+            sendBookingConfirmationEmail(
+                $user,
+                $activity,
+                $date,
+                $timeslot,
+                $booking_id,
+                $price,
+                $bill_path
+            );
+        } else {
+            // Process recurring booking
+            require_once 'process_recurring_booking.php';
         }
 
-        // Instead of immediately redirecting, show success page
-        ?>
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Payment Success - ArenaX</title>
-            <style>
-                .success-container {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 100vh;
-                    background: linear-gradient(rgba(225, 240, 255, 0.23), rgba(251, 253, 255, 0.15)), url('img/f3.png');
-                    background-size: cover;
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                }
-                .success-box {
-                    background: rgba(255, 255, 255, 0.95);
-                    padding: 40px;
-                    border-radius: 20px;
-                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-                    text-align: center;
-                    max-width: 500px;
-                    width: 90%;
-                }
-                .success-icon {
-                    color: #28a745;
-                    font-size: 60px;
-                    margin-bottom: 20px;
-                }
-                .success-message {
-                    color: #28a745;
-                    font-size: 24px;
-                    margin-bottom: 20px;
-                }
-                .booking-details {
-                    margin: 20px 0;
-                    padding: 15px;
-                    background: #f8f9fa;
-                    border-radius: 10px;
-                }
-                .loading {
-                    display: inline-block;
-                    width: 40px;
-                    height: 40px;
-                    border: 3px solid #f3f3f3;
-                    border-radius: 50%;
-                    border-top: 3px solid #28a745;
-                    animation: spin 1s linear infinite;
-                    margin: 20px 0;
-                }
-                .redirect-text {
-                    color: #666;
-                    font-size: 16px;
-                }
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-            </style>
-            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-        </head>
-        <body>
-            <div class="success-container">
-                <div class="success-box">
-                    <i class="fas fa-check-circle success-icon"></i>
-                    <div class="success-message">
-                        Payment Successful!
-                    </div>
-                    <div class="booking-details">
-                        <p><strong>Activity:</strong> <?php echo htmlspecialchars($activity); ?></p>
-                        <p><strong>Date:</strong> <?php echo htmlspecialchars($date); ?></p>
-                        <p><strong>Time:</strong> <?php echo htmlspecialchars($timeslot); ?></p>
-                        <p><strong>Amount Paid:</strong> ₹<?php echo htmlspecialchars($price); ?></p>
-                    </div>
-                    <div class="loading"></div>
-                    <p class="redirect-text">Redirecting to your bookings...</p>
-                </div>
-            </div>
-
-            <script>
-                setTimeout(function() {
-                    window.location.href = 'user_bookings.php';
-                }, 3000); // 3 seconds delay
-            </script>
-        </body>
-        </html>
-        <?php
+        $conn->commit();
+        header("Location: user_bookings.php");
         exit();
 
     } catch (Exception $e) {
         $conn->rollBack();
+        error_log("Booking error: " . $e->getMessage());
         $_SESSION['error_message'] = "An error occurred during booking. Please try again.";
         header("Location: user_outdoor.php");
         exit();
@@ -254,8 +229,11 @@ if (isset($_POST['process_payment'])) {
  * Generate a PDF bill for booking
  */
 function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, $booking_date, $booking_time, $amount, $output_path, $conn) {
-    // Get user details
-    $stmt = $conn->prepare("SELECT name, email, mobile FROM users WHERE user_id = ?");
+    // Get user details including membership
+    $stmt = $conn->prepare("SELECT u.name, u.email, u.mobile, m.membership_type 
+                           FROM users u 
+                           LEFT JOIN memberships m ON u.membership_id = m.membership_id 
+                           WHERE u.user_id = ?");
     $stmt->execute([$user_id]);
     $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -287,9 +265,8 @@ function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, 
     $pdf->SetCreator('ArenaX');
     $pdf->SetAuthor('ArenaX');
     $pdf->SetTitle('Booking Receipt');
-    $pdf->SetSubject('Booking Receipt');
     
-    // Remove header/footer
+    // Remove default header/footer
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
     
@@ -299,10 +276,13 @@ function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, 
     // Add a page
     $pdf->AddPage();
     
-    // Set font
-    $pdf->SetFont('helvetica', '', 12);
+    // Add logo
+    $logo_path = __DIR__ . '/img/logo3.png'; // Adjust path as needed
+    if (file_exists($logo_path)) {
+        $pdf->Image($logo_path, 15, 15, 40);
+    }
     
-    // Title
+    // Company details with custom styling
     $pdf->SetFont('helvetica', 'B', 20);
     $pdf->Cell(0, 20, 'ArenaX', 0, 1, 'R');
     
@@ -311,29 +291,38 @@ function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, 
     $pdf->Cell(0, 5, 'Kerala, India', 0, 1, 'R');
     $pdf->Cell(0, 5, 'info@arenax.com', 0, 1, 'R');
     
-    $pdf->Ln(10);
+    // Add a line separator
+    $pdf->Line(15, 60, 195, 60);
+    $pdf->Ln(15);
     
-    // Bill title
+    // Bill title with styling
     $pdf->SetFont('helvetica', 'B', 16);
     $pdf->Cell(0, 10, 'BOOKING RECEIPT', 0, 1, 'C');
     $pdf->Ln(5);
     
-    // Bill details
+    // Receipt details with improved styling
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(90, 8, 'Receipt Number:', 0, 0);
     $pdf->SetFont('helvetica', '', 12);
     $pdf->Cell(0, 8, 'BOOK-' . str_pad($booking_id, 6, '0', STR_PAD_LEFT), 0, 1);
     
+    // Booking date and time with separate lines
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(90, 8, 'Booking Date:', 0, 0);
     $pdf->SetFont('helvetica', '', 12);
-    $pdf->Cell(0, 8, $booking_date . ' ' . $booking_time, 0, 1);
+    $pdf->Cell(0, 8, date('d-m-Y', strtotime($booking_date)), 0, 1);
+    
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Booking Time:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, date('h:i A', strtotime($booking_time)), 0, 1);
     
     $pdf->Ln(5);
     
-    // Customer details
+    // Customer details section with membership
+    $pdf->SetFillColor(240, 240, 240);
     $pdf->SetFont('helvetica', 'B', 14);
-    $pdf->Cell(0, 10, 'Customer Details', 0, 1);
+    $pdf->Cell(0, 10, 'Customer Details', 0, 1, '', true);
     
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(90, 8, 'Name:', 0, 0);
@@ -350,11 +339,16 @@ function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, 
     $pdf->SetFont('helvetica', '', 12);
     $pdf->Cell(0, 8, $user_data['mobile'], 0, 1);
     
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(90, 8, 'Membership Type:', 0, 0);
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(0, 8, $user_data['membership_type'] ?? 'Non-Member', 0, 1);
+    
     $pdf->Ln(5);
     
-    // Booking details
+    // Booking details section
     $pdf->SetFont('helvetica', 'B', 14);
-    $pdf->Cell(0, 10, 'Booking Details', 0, 1);
+    $pdf->Cell(0, 10, 'Booking Details', 0, 1, '', true);
     
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(90, 8, 'Activity:', 0, 0);
@@ -364,7 +358,7 @@ function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, 
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(90, 8, 'Date:', 0, 0);
     $pdf->SetFont('helvetica', '', 12);
-    $pdf->Cell(0, 8, $slot_data['slot_date'], 0, 1);
+    $pdf->Cell(0, 8, date('d-m-Y', strtotime($slot_data['slot_date'])), 0, 1);
     
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(90, 8, 'Time:', 0, 0);
@@ -374,28 +368,135 @@ function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, 
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(90, 8, 'Amount Paid:', 0, 0);
     $pdf->SetFont('helvetica', '', 12);
-    $pdf->Cell(0, 8, '₹' . number_format($amount, 2), 0, 1);
+    $pdf->Cell(0, 8, chr(0xE2).chr(0x82).chr(0xB9) . ' ' . number_format($amount, 2), 0, 1);
     
     $pdf->Ln(10);
     
-    // Thank you note
+    // Thank you note with styling
     $pdf->SetFont('helvetica', 'I', 12);
     $pdf->Cell(0, 10, 'Thank you for choosing ArenaX. We appreciate your business!', 0, 1, 'C');
     
-    // Terms and conditions
+    // Terms and conditions with better formatting
     $pdf->Ln(10);
     $pdf->SetFont('helvetica', 'B', 10);
     $pdf->Cell(0, 8, 'Terms and Conditions:', 0, 1);
     $pdf->SetFont('helvetica', '', 9);
-    $pdf->MultiCell(0, 5, '1. Please arrive 15 minutes before your scheduled time.
-2. Cancellations must be made at least 24 hours in advance.
-3. For any queries, please contact our customer support.', 0, 'L');
+    $pdf->MultiCell(0, 5, "1. Please arrive 15 minutes before your scheduled time.\n" .
+                         "2. Cancellations must be made at least 24 hours in advance.\n" .
+                         "3. For any queries, please contact our customer support.", 0, 'L');
+    
+    // Add QR code with booking ID
+    $qr_data = "Booking ID: BOOK-" . str_pad($booking_id, 6, '0', STR_PAD_LEFT) . 
+               "\nDate: " . date('d-m-Y', strtotime($slot_data['slot_date'])) . 
+               "\nTime: " . $time_slot;
+    $pdf->write2DBarcode($qr_data, 'QRCODE,L', 160, 230, 30, 30);
     
     // Output the PDF
     $pdf->Output($output_path, 'F');
     
     return true;
 }
+
+// Add this new function
+function sendBookingConfirmationEmail($user, $activity, $date, $timeslot, $booking_id, $price, $bill_path) {
+    try {
+        $mail = new PHPMailer(true);
+        
+        // Enable verbose debug output
+        $mail->SMTPDebug = SMTP::DEBUG_SERVER;
+        $mail->Debugoutput = function($str, $level) {
+            error_log("PHPMailer Debug: $str");
+        };
+        
+        // Server settings
+        $mail->isSMTP();
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'elizabethmaryabraham09@gmail.com';
+        $mail->Password = 'xvec mfoh vkhp fabg';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+
+        error_log("Starting email send process for booking ID: " . $booking_id);
+        error_log("Sending to email: " . $user['email']);
+
+        // Recipients
+        $mail->setFrom('elizabethmaryabraham09@gmail.com', 'ArenaX Sports');
+        $mail->addAddress($user['email'], $user['name']);
+
+        // Content
+        $mail->isHTML(true);
+        $mail->Subject = 'Booking Confirmation - ArenaX Sports';
+
+        // Email body
+        $emailBody = "
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; }
+                    .container { padding: 20px; }
+                    .header { background-color: #00bcd4; color: white; padding: 20px; text-align: center; }
+                    .content { padding: 20px; }
+                    .footer { text-align: center; padding: 20px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <div class='container'>
+                    <div class='header'>
+                        <h2>Booking Confirmation</h2>
+                    </div>
+                    <div class='content'>
+                        <p>Dear {$user['name']},</p>
+                        <p>Your booking has been confirmed. Here are the details:</p>
+                        <ul>
+                            <li>Activity: {$activity}</li>
+                            <li>Date: {$date}</li>
+                            <li>Time: {$timeslot}</li>
+                            <li>Booking ID: {$booking_id}</li>
+                            <li>Amount Paid: ₹{$price}</li>
+                        </ul>
+                        <p>Your booking bill has been attached to this email.</p>
+                        <p>Thank you for choosing ArenaX Sports!</p>
+                    </div>
+                    <div class='footer'>
+                        <p>This is an automated email. Please do not reply.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+        
+        $mail->Body = $emailBody;
+        $mail->AltBody = strip_tags($emailBody);
+
+        // Verify and attach bill
+        if (file_exists($bill_path)) {
+            $mail->addAttachment($bill_path, 'booking_bill.pdf');
+            error_log("Bill attached successfully: " . $bill_path);
+        } else {
+            error_log("Bill file not found: " . $bill_path);
+        }
+
+        // Send email
+        if($mail->send()) {
+            error_log("Email sent successfully to {$user['email']}");
+            return true;
+        } else {
+            error_log("Email not sent. Mailer Error: " . $mail->ErrorInfo);
+            return false;
+        }
+        
+    } catch (Exception $e) {
+        error_log("Email sending error: " . $e->getMessage());
+        return false;
+    }
+}
+
+error_log(print_r($_POST, true)); // Log the entire POST array
+
+// Make sure this is at the top of your file
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 ?>
 
 <!DOCTYPE html>
@@ -665,157 +766,105 @@ function generateBookingBill($user_id, $sub_activity_id, $slot_id, $booking_id, 
                 <span>Activity:</span>
                 <span><?php echo htmlspecialchars($activity); ?></span>
             </div>
-            <div class="detail-row">
-                <span>Date:</span>
-                <span><?php echo htmlspecialchars($date); ?></span>
-            </div>
-            <div class="detail-row">
-                <span>Time Slot:</span>
-                <span><?php echo htmlspecialchars($timeslot); ?></span>
-            </div>
+            <?php if ($booking_type === 'single'): ?>
+                <div class="detail-row">
+                    <span>Date:</span>
+                    <span><?php echo htmlspecialchars($date); ?></span>
+                </div>
+                <div class="detail-row">
+                    <span>Time Slot:</span>
+                    <span><?php echo htmlspecialchars($timeslot); ?></span>
+                </div>
+            <?php else: ?>
+                <div class="detail-row">
+                    <span>Start Date:</span>
+                    <span><?php echo htmlspecialchars($_POST['start_date']); ?></span>
+                </div>
+                <div class="detail-row">
+                    <span>Duration:</span>
+                    <span><?php echo htmlspecialchars($_POST['weeks']); ?> weeks</span>
+                </div>
+                <div class="detail-row">
+                    <span>Total Sessions:</span>
+                    <span><?php echo htmlspecialchars($_POST['total_sessions']); ?></span>
+                </div>
+            <?php endif; ?>
             <div class="detail-row">
                 <span>Amount:</span>
                 <span>₹<?php echo htmlspecialchars($price); ?></span>
             </div>
         </div>
 
-        <form id="paymentForm" method="POST" class="payment-form">
-            <div class="form-group">
-                <label for="cardName">Cardholder Name</label>
-                <input type="text" id="cardName" name="card_holder" required placeholder="Name">
-            </div>
-
-            <div class="form-group">
-                <label for="cardNumber">Card Number</label>
-                <input type="text" id="cardNumber" name="card_number" required placeholder="1234 5678 9012 3456" maxlength="19">
-            </div>
-
-            <div class="card-details">
-                <div class="form-group">
-                    <label for="expiryDate">Expiry Date</label>
-                    <input type="text" id="expiryDate" name="expiry" required placeholder="MM/YY" maxlength="5">
-                </div>
-
-                <div class="form-group">
-                    <label for="cvv">CVV</label>
-                    <input type="password" id="cvv" name="cvv" required placeholder="123" maxlength="3">
-                </div>
-            </div>
-
-            <input type="hidden" name="activity" value="<?php echo htmlspecialchars($activity); ?>">
-            <input type="hidden" name="date" value="<?php echo htmlspecialchars($date); ?>">
-            <input type="hidden" name="timeslot" value="<?php echo htmlspecialchars($timeslot); ?>">
-            <input type="hidden" name="price" value="<?php echo htmlspecialchars($price); ?>">
-            <button type="submit" name="process_payment" class="pay-now-btn">Pay ₹<?php echo htmlspecialchars($price); ?></button>
-            
-            <div class="secure-badge">
-                <i class="fas fa-lock"></i>
-                <span>Your payment is secure and encrypted</span>
-            </div>
-        </form>
+        <button id="rzp-button">Pay Now</button>
     </div>
 
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
-        function showPaymentForm(type) {
-            // Hide all payment forms first
-            document.getElementById('cardForm').classList.remove('hidden');
-            
-            // Update active state of payment options
-            const options = document.querySelectorAll('.payment-option');
-            options.forEach(option => {
-                option.classList.remove('active');
-            });
-            event.currentTarget.classList.add('active');
-        }
+        var options = {
+            "key": "rzp_test_iZLI83hLdG7JqU", // Replace with your Razorpay key
+            "amount": "<?php echo $price * 100; ?>",
+            "currency": "INR",
+            "name": "ArenaX",
+            "description": "<?php echo $booking_type === 'recurring' ? 'Recurring' : 'Single'; ?> Booking Payment",
+            "image": "img/logo3.png",
+            "handler": function (response) {
+                // Create a form to submit payment details
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'process_payment.php';
 
-        // Add basic form validation
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', (e) => {
-                if (!validateForm(e.target)) {
-                    e.preventDefault();
-                }
-            });
-        });
+                // Add all necessary fields
+                var formData = {
+                    'booking_type': '<?php echo $booking_type; ?>',
+                    'activity': '<?php echo addslashes($activity); ?>',
+                    'price': '<?php echo addslashes($price); ?>',
+                    'process_payment': '1',
+                    'razorpay_payment_id': response.razorpay_payment_id
+                };
 
-        function validateForm(form) {
-            if (form.payment_type.value === 'card') {
-                // Validate card number (16 digits, removing spaces)
-                const cardNumber = form.card_number.value.replace(/\s/g, '');
-                if (!/^\d{16}$/.test(cardNumber)) {
-                    alert('Please enter a valid 16-digit card number');
-                    return false;
+                <?php if ($booking_type === 'recurring'): ?>
+                // Add recurring booking specific fields
+                Object.assign(formData, {
+                    'activity_id': '<?php echo $_POST['activity_id']; ?>',
+                    'start_date': '<?php echo $_POST['start_date']; ?>',
+                    'weeks': '<?php echo $_POST['weeks']; ?>',
+                    'selected_days': '<?php echo $_POST['selected_days']; ?>',
+                    'booking_time': '<?php echo $_POST['booking_time']; ?>',
+                    'total_sessions': '<?php echo $_POST['total_sessions']; ?>',
+                    'price_per_session': '<?php echo $_POST['price_per_session']; ?>'
+                });
+                <?php else: ?>
+                // Add single booking specific fields
+                Object.assign(formData, {
+                    'date': '<?php echo addslashes($date ?? ''); ?>',
+                    'timeslot': '<?php echo addslashes($timeslot ?? ''); ?>'
+                });
+                <?php endif; ?>
+
+                // Add all fields to form
+                for (var key in formData) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = formData[key];
+                    form.appendChild(input);
                 }
 
-                // Validate expiry date (MM/YY format)
-                if (!/^\d{2}\/\d{2}$/.test(form.expiry.value)) {
-                    alert('Please enter a valid expiry date (MM/YY)');
-                    return false;
-                }
-
-                // Validate CVV (3 digits)
-                if (!/^\d{3}$/.test(form.cvv.value)) {
-                    alert('Please enter a valid 3-digit CVV');
-                    return false;
-                }
+                document.body.appendChild(form);
+                form.submit();
+            },
+            "prefill": {
+                "name": "<?php echo htmlspecialchars($user['name']); ?>",
+                "email": "<?php echo htmlspecialchars($user['email']); ?>"
+            },
+            "theme": {
+                "color": "#72aab0"
             }
-            return true;
-        }
-
-        // Update the card number formatting
-        document.querySelector('input[name="card_number"]')?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\s/g, '');    // Remove existing spaces
-            value = value.replace(/\D/g, '');                 // Remove non-digits
-            if (value.length > 16) {                          // Limit to 16 digits
-                value = value.slice(0, 16);
-            }
-            
-            // Format with spaces after every 4 digits
-            let formattedValue = '';
-            for (let i = 0; i < value.length; i++) {
-                if (i > 0 && i % 4 === 0) {
-                    formattedValue += ' ';
-                }
-                formattedValue += value[i];
-            }
-            e.target.value = formattedValue;
-        });
-
-        // Format expiry date input
-        document.querySelector('input[name="expiry"]')?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length >= 2) {
-                value = value.slice(0, 2) + '/' + value.slice(2);
-            }
-            e.target.value = value;
-        });
-
-        // Add loading state to buttons during form submission
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', (e) => {
-                if (validateForm(e.target)) {
-                    const button = e.target.querySelector('button');
-                    button.classList.add('loading');
-                    button.textContent = 'Processing...';
-                } else {
-                    e.preventDefault();
-                }
-            });
-        });
-
-        // Function to show success message
-        function showSuccess() {
-            document.getElementById('successMessage').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('successMessage').style.display = 'none';
-            }, 3000);
-        }
-
-        // Function to show error message
-        function showError() {
-            document.getElementById('errorMessage').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('errorMessage').style.display = 'none';
-            }, 3000);
+        };
+        var rzp = new Razorpay(options);
+        document.getElementById('rzp-button').onclick = function(e) {
+            rzp.open();
+            e.preventDefault();
         }
     </script>
 </body>

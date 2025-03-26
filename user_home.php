@@ -74,6 +74,74 @@ if ($result->num_rows > 0) {
     $upcoming_event = $row['event_name'] . " on " . date("F j, Y", strtotime($row['event_date']));
 }
 
+// Add this PHP code after the existing database queries
+$activityQuery = "SELECT DISTINCT a.activity_type, san.sub_act_name 
+                 FROM activity a 
+                 LEFT JOIN sub_activity_name san ON a.activity_id = san.activity_id
+                 ORDER BY a.activity_type, san.sub_act_name";
+$activityResult = $conn->query($activityQuery);
+
+$activities = [];
+while ($row = $activityResult->fetch_assoc()) {
+    $activities[$row['activity_type']][] = $row['sub_act_name'];
+}
+
+// Add events as a separate category (not tied to activity_type)
+// This pulls events directly without requiring 'Event' as an activity type
+$eventsQuery = "SELECT event_title FROM events ORDER BY event_title";
+$eventsResult = $conn->query($eventsQuery);
+
+echo "<!-- Debug: Events query executed. Found " . $eventsResult->num_rows . " events -->";
+
+// Create an "Event" category in the activities array even though it's not an activity type
+$activities['Event'] = []; 
+
+while ($row = $eventsResult->fetch_assoc()) {
+    $activities['Event'][] = $row['event_title'];
+    echo "<!-- Debug: Added event: " . $row['event_title'] . " to Event category -->";
+}
+
+// Debug - print all available activity types and their activities
+echo "<!-- Available activity types: " . implode(', ', array_keys($activities)) . " -->";
+foreach ($activities as $type => $items) {
+    echo "<!-- Type: $type, Items: " . count($items) . " -->";
+}
+
+// Convert PHP array to JSON for JavaScript use
+$activitiesJson = json_encode($activities);
+
+// Add this query to fetch membership registration date
+$membershipDatesQuery = "SELECT mr.membership_reg_date";
+
+// Check if expiration_date column exists
+$checkColumnQuery = "SHOW COLUMNS FROM membership_reg LIKE 'expiration_date'";
+$columnResult = $conn->query($checkColumnQuery);
+if ($columnResult && $columnResult->num_rows > 0) {
+    // Column exists, include it in the query
+    $membershipDatesQuery .= ", mr.expiration_date";
+}
+
+// Complete the query
+$membershipDatesQuery .= " FROM membership_reg mr 
+                        JOIN users u ON mr.user_id = u.user_id 
+                        WHERE u.email = '$user_email' 
+                        ORDER BY mr.membership_reg_id DESC 
+                        LIMIT 1";
+$membershipDatesResult = $conn->query($membershipDatesQuery);
+
+$registration_date = "Not available";
+$expiration_date = "Not available";
+
+if ($membershipDatesResult && $membershipDatesResult->num_rows > 0) {
+    $datesRow = $membershipDatesResult->fetch_assoc();
+    $registration_date = date("F j, Y", strtotime($datesRow['membership_reg_date']));
+    
+    // Check if expiration_date exists in the result
+    if (isset($datesRow['expiration_date'])) {
+        $expiration_date = date("F j, Y", strtotime($datesRow['expiration_date']));
+    }
+}
+
 $conn->close();
 
 // Check if the modal has been shown before (only for auto-display on page load)
@@ -1070,6 +1138,67 @@ textarea::placeholder {
         grid-template-columns: 1fr;
     }
 }
+
+.activity-selection {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 2rem;
+    justify-content: center;
+}
+
+.select-wrapper {
+    position: relative;
+    width: 250px;
+}
+
+.select-wrapper select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #00bcd4;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    border-radius: 5px;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 1rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+.select-wrapper::after {
+    content: '\f107';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #00bcd4;
+    pointer-events: none;
+}
+
+.select-wrapper select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.select-wrapper select option {
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .activity-selection {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .select-wrapper {
+        width: 100%;
+        max-width: 300px;
+    }
+}
     </style>
 </head>
 <body>
@@ -1125,6 +1254,13 @@ textarea::placeholder {
                 <h3 class="quick-check-title">MEMBERSHIP STATUS</h3>
                 <div class="quick-check-divider"></div>
                 <div class="quick-check-content"><?php echo htmlspecialchars($membership_type); ?></div>
+                <?php if ($membership_id > 1): // Only show dates for paid memberships ?>
+                    <!--<div class="quick-check-divider"></div> -->
+                    <div class="quick-check-content" style="font-size: 1rem;">
+                        <div style="margin-bottom: 5px;">Registered: <?php echo htmlspecialchars($registration_date); ?></div>
+                        <div>Expires: <?php echo htmlspecialchars($expiration_date); ?></div>
+                    </div>
+                <?php endif; ?>
             </div>
             <div class="quick-check-box">
                 <div class="quick-check-icon">
@@ -1202,9 +1338,25 @@ textarea::placeholder {
         </div>
         <div class="feedback-container">
             <form id="feedbackForm" method="POST" action="submit_feedback.php">
+                <div class="activity-selection">
+                    <div class="select-wrapper">
+                        <select name="activity_type" id="activityType" required>
+                            <option value="" disabled selected>Select Activity Type</option>
+                            <option value="Indoor">Indoor Activities</option>
+                            <option value="Outdoor">Outdoor Activities</option>
+                            <option value="Fitness">Fitness Activities</option>
+                            <option value="Event">Events</option>
+                        </select>
+                    </div>
+                    <div class="select-wrapper">
+                        <select name="activity_name" id="activityName" required disabled>
+                            <option value="" disabled selected>Select Specific Activity</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="rating-container">
                     <div class="rating-wrapper">
-                        <span class="rate-text">Rate us:</span>
+                        <span class="rate-text">Rate your experience:</span>
                         <div class="rating">
                             <input type="radio" id="star5" name="rating" value="5" required>
                             <label for="star5" title="5 stars"><i class="fas fa-star"></i></label>
@@ -1268,6 +1420,14 @@ textarea::placeholder {
                 <span class="close" id="closeModal">&times;</span>
                 <h2 class="modal-title">UPGRADE &nbsp; MEMBERSHIP</h2>
                 <div class="modal-divider"></div>
+                
+                <!-- Add membership dates information -->
+                <div style="margin-bottom: 20px; color: white; text-align: center;">
+                    <p style="margin-bottom: 10px;">Current Membership: <span style="color: #00bcd4;"><?php echo htmlspecialchars($membership_type); ?></span></p>
+                    <p style="margin-bottom: 10px;">Registration Date: <span style="color: #00bcd4;"><?php echo htmlspecialchars($registration_date); ?></span></p>
+                    <p>Expiration Date: <span style="color: #00bcd4;"><?php echo htmlspecialchars($expiration_date); ?></span></p>
+                </div>
+                
                 <div class="membership-options">
                     <?php if ($membership_id == 2): ?>
                         <div class="membership" style="border: 2px solid #00bcd4; border-radius: 10px; padding: 20px; background-color: rgba(0, 0, 0, 0.5);">
@@ -1434,20 +1594,86 @@ if (modal && <?php echo $auto_show_modal ? 'true' : 'false'; ?>) {
             // Redirect to the payment page with the selected membership ID
             window.location.href = 'payment.php?membership_id=' + membershipId; // Redirect to payment page
         }
+
+        // Check for the query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('showMembershipModal') === 'true') {
+            // Show membership modal after a short delay to ensure DOM is ready
+            setTimeout(() => {
+                const modal = document.getElementById('membershipModal');
+                if (modal) {
+                    modal.classList.add('show');
+                    modal.style.display = 'block';
+                    document.body.style.overflow = 'hidden';
+                    console.log('Modal displayed');
+                } else {
+                    console.error('Modal element not found');
+                }
+                // Remove the query parameter
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }, 500);
+        }
     });
     
-    // Make sure scroll indicator function is accessible
-    function scrollToAbout() {
-        const aboutSection = document.querySelector('.about-section');
-        const headerHeight = document.querySelector('.header').offsetHeight;
-        const elementPosition = aboutSection.getBoundingClientRect().top;
-        const offsetPosition = elementPosition + window.pageYOffset - headerHeight;
+    // Debug check - log if script is running
+    console.log('Modal script loaded');
+    console.log('URL parameters:', window.location.search);
 
-        window.scrollTo({
-            top: offsetPosition,
-            behavior: "smooth"
-        });
-    }
+    // Replace the hardcoded activityOptions with the database values
+    const activityOptions = <?php echo $activitiesJson; ?>;
+
+    // Debug the content of activityOptions
+    console.log('Available activity options:', activityOptions);
+
+    document.getElementById('activityType').addEventListener('change', function() {
+        const activityNameSelect = document.getElementById('activityName');
+        activityNameSelect.disabled = false;
+        
+        // Clear existing options
+        activityNameSelect.innerHTML = '<option value="" disabled selected>Select Specific Activity</option>';
+        
+        // Log selected activity type and available options
+        console.log('Selected activity type:', this.value);
+        console.log('Available activities for this type:', activityOptions[this.value]);
+        
+        // Add new options based on selected activity type
+        const activities = activityOptions[this.value] || [];
+        
+        if (activities.length === 0) {
+            console.log('No activities found for type:', this.value);
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No activities available';
+            option.disabled = true;
+            activityNameSelect.appendChild(option);
+        } else {
+            console.log(`Found ${activities.length} activities for type:`, this.value);
+            activities.forEach(activity => {
+                if (activity) { // Only add non-null activities
+                    const option = document.createElement('option');
+                    option.value = activity;
+                    option.textContent = activity;
+                    activityNameSelect.appendChild(option);
+                    console.log('Added option:', activity);
+                }
+            });
+        }
+    });
+
+    // Add animation when form is submitted
+    document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Animate the submit button
+        const submitButton = this.querySelector('.submit-feedback');
+        submitButton.style.transform = 'scale(0.95)';
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+        
+        // Submit the form after a brief delay
+        setTimeout(() => {
+            this.submit();
+        }, 1000);
+    });
 </script>
 </body>
 </html>

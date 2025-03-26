@@ -49,6 +49,18 @@ if (isset($_POST['process_payment'])) {
     try {
         $conn->beginTransaction();
 
+        // Validate event_id exists
+        if (empty($event_id)) {
+            throw new Exception('Invalid event ID');
+        }
+
+        // Verify event exists
+        $stmt = $conn->prepare("SELECT event_id FROM events WHERE event_id = ?");
+        $stmt->execute([$event_id]);
+        if (!$stmt->fetch()) {
+            throw new Exception('Event not found');
+        }
+
         // Check for existing registration
         $stmt = $conn->prepare("SELECT event_reg_id FROM event_registration WHERE event_id = ? AND user_id = ?");
         $stmt->execute([$event_id, $user['user_id']]);
@@ -60,25 +72,20 @@ if (isset($_POST['process_payment'])) {
         }
 
         // Insert into event_registration table
-        $stmt = $conn->prepare("INSERT INTO event_registration (event_id, user_id) 
-                              VALUES (?, ?)");
-        $stmt->execute([
-            $event_id,
-            $user['user_id']
-        ]);
+        $stmt = $conn->prepare("INSERT INTO event_registration (event_id, user_id) VALUES (?, ?)");
+        $stmt->execute([$event_id, $user['user_id']]);
         $event_reg_id = $conn->lastInsertId();
 
         // Generate PDF bill
         $bill_filename = 'event_bill_' . $event_reg_id . '.pdf';
-        $bill_dir = __DIR__ . '/bills/'; // Use absolute path
+        $bill_dir = __DIR__ . '/bills/';
         
-        // Create directory if it doesn't exist
         if (!file_exists($bill_dir)) {
             mkdir($bill_dir, 0777, true);
         }
         
         $bill_path = $bill_dir . $bill_filename;
-        $relative_bill_path = 'bills/' . $bill_filename; // For database storage
+        $relative_bill_path = 'bills/' . $bill_filename;
         
         // Generate the PDF bill
         generateEventBill($user['user_id'], $event_id, $event_reg_id, date('Y-m-d'), date('H:i:s'), $price, $bill_path, $conn);
@@ -92,16 +99,13 @@ if (isset($_POST['process_payment'])) {
                               VALUES (?, ?, CURDATE(), CURTIME(), ?)");
         $stmt->execute([$user['user_id'], $price, $event_reg_id]);
 
-        // Create notification for user
+        // Create notification
         $stmt = $conn->prepare("INSERT INTO notification (user_id, title, message, created_at_date, created_at_time) 
                               VALUES (?, ?, ?, CURDATE(), CURTIME())");
-        $notification_message = "Your registration for event '$event_title' on $event_date at $event_time has been confirmed. Registration ID: $event_reg_id";
+        $notification_message = "Your registration for event '{$event_title}' has been confirmed. Registration ID: $event_reg_id";
         $stmt->execute([$user['user_id'], "Event Registration Confirmation", $notification_message]);
 
-        $conn->commit();
-
-        // Send confirmation email using PHPMailer
-        // Create a new PHPMailer instance
+        // Send confirmation email
         $mail = new PHPMailer(true);
 
         try {
@@ -109,16 +113,14 @@ if (isset($_POST['process_payment'])) {
             $mail->isSMTP();
             $mail->Host = 'smtp.gmail.com';
             $mail->SMTPAuth = true;
-            $mail->Username = 'elizabethmaryabraham09@gmail.com'; // Your Gmail address
-            $mail->Password = 'xvec mfoh vkhp fabg'; // Your Gmail App Password
+            $mail->Username = 'elizabethmaryabraham09@gmail.com';
+            $mail->Password = 'xvec mfoh vkhp fabg';
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port = 587;
 
             // Recipients
             $mail->setFrom('elizabethmaryabraham09@gmail.com', 'ArenaX');
             $mail->addAddress($user['email'], $user['name']);
-
-            // Attach the bill
             $mail->addAttachment($bill_path);
 
             // Content
@@ -134,11 +136,11 @@ if (isset($_POST['process_payment'])) {
                 <p>Dear {$user['name']},</p>
                 <p>Your event registration has been confirmed with the following details:</p>
                 <ul>
-                    <li>Event: $event_title</li>
-                    <li>Date: $event_date</li>
-                    <li>Time: $event_time</li>
-                    <li>Location: $event_location</li>
-                    <li>Amount Paid: ₹$price</li>
+                    <li>Event: {$event_title}</li>
+                    <li>Date: {$event_date}</li>
+                    <li>Time: {$event_time}</li>
+                    <li>Location: {$event_location}</li>
+                    <li>Amount Paid: ₹{$price}</li>
                 </ul>
                 <p>Registration ID: $event_reg_id</p>
                 <p>Please find your registration receipt attached to this email.</p>
@@ -151,105 +153,16 @@ if (isset($_POST['process_payment'])) {
 
             $mail->send();
         } catch (Exception $e) {
-            // Log the error but don't stop the process
             error_log("Email could not be sent. Mailer Error: {$mail->ErrorInfo}");
         }
 
-        // Instead of immediately redirecting, show success page
-        ?>
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Payment Success - ArenaX</title>
-            <style>
-                .success-container {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 100vh;
-                    background: linear-gradient(rgba(225, 240, 255, 0.23), rgba(251, 253, 255, 0.15)), url('img/f3.png');
-                    background-size: cover;
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                }
-                .success-box {
-                    background: rgba(255, 255, 255, 0.95);
-                    padding: 40px;
-                    border-radius: 20px;
-                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-                    text-align: center;
-                    max-width: 500px;
-                    width: 90%;
-                }
-                .success-icon {
-                    color: #28a745;
-                    font-size: 60px;
-                    margin-bottom: 20px;
-                }
-                .success-message {
-                    color: #28a745;
-                    font-size: 24px;
-                    margin-bottom: 20px;
-                }
-                .event-details {
-                    margin: 20px 0;
-                    padding: 15px;
-                    background: #f8f9fa;
-                    border-radius: 10px;
-                }
-                .loading {
-                    display: inline-block;
-                    width: 40px;
-                    height: 40px;
-                    border: 3px solid #f3f3f3;
-                    border-radius: 50%;
-                    border-top: 3px solid #28a745;
-                    animation: spin 1s linear infinite;
-                    margin: 20px 0;
-                }
-                .redirect-text {
-                    color: #666;
-                    font-size: 16px;
-                }
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-            </style>
-            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-        </head>
-        <body>
-            <div class="success-container">
-                <div class="success-box">
-                    <i class="fas fa-check-circle success-icon"></i>
-                    <div class="success-message">
-                        Payment Successful!
-                    </div>
-                    <div class="event-details">
-                        <p><strong>Event:</strong> <?php echo htmlspecialchars($event_title); ?></p>
-                        <p><strong>Date:</strong> <?php echo htmlspecialchars($event_date); ?></p>
-                        <p><strong>Time:</strong> <?php echo htmlspecialchars($event_time); ?></p>
-                        <p><strong>Location:</strong> <?php echo htmlspecialchars($event_location); ?></p>
-                        <p><strong>Amount Paid:</strong> ₹<?php echo htmlspecialchars($price); ?></p>
-                    </div>
-                    <div class="loading"></div>
-                    <p class="redirect-text">Redirecting to your events...</p>
-                </div>
-            </div>
-
-            <script>
-                setTimeout(function() {
-                    window.location.href = 'user_events.php';
-                }, 3000); // 3 seconds delay
-            </script>
-        </body>
-        </html>
-        <?php
+        $conn->commit();
+        header("Location: user_events.php");
         exit();
 
     } catch (Exception $e) {
         $conn->rollBack();
-        $_SESSION['error_message'] = "An error occurred during event registration. Please try again.";
+        $_SESSION['error_message'] = "An error occurred during event registration: " . $e->getMessage();
         header("Location: user_events.php");
         exit();
     }
@@ -433,7 +346,7 @@ function generateEventBill($user_id, $event_id, $event_reg_id, $reg_date, $reg_t
         .payment-container {
             max-width: 800px;
             padding: 30px;
-            background: rgba(77, 69, 69, 0.9); /* Change to a semi-transparent white */
+            background: rgba(77, 69, 69, 0.9);
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
             border-radius: 20px;
             margin: 40px auto;
@@ -694,6 +607,26 @@ function generateEventBill($user_id, $event_id, $event_reg_id, $reg_date, $reg_t
             margin-right: 5px;
             color: #28a745;
         }
+
+        button#rzp-button {
+            width: 100%;
+            padding: 14px;
+            background-color: rgb(82, 170, 177);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        button#rzp-button:hover {
+            background-color: rgb(58, 190, 179);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
     </style>
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
@@ -725,100 +658,51 @@ function generateEventBill($user_id, $event_id, $event_reg_id, $reg_date, $reg_t
             </div>
         </div>
 
-        <form id="paymentForm" method="POST" class="payment-form">
-            <div class="form-group">
-                <label for="cardName">Cardholder Name</label>
-                <input type="text" id="cardName" name="card_holder" required placeholder="Name">
-            </div>
-
-            <div class="form-group">
-                <label for="cardNumber">Card Number</label>
-                <input type="text" id="cardNumber" name="card_number" required placeholder="1234 5678 9012 3456" maxlength="19">
-            </div>
-
-            <div class="card-details">
-                <div class="form-group">
-                    <label for="expiryDate">Expiry Date</label>
-                    <input type="text" id="expiryDate" name="expiry" required placeholder="MM/YY" maxlength="5">
-                </div>
-
-                <div class="form-group">
-                    <label for="cvv">CVV</label>
-                    <input type="password" id="cvv" name="cvv" required placeholder="123" maxlength="3">
-                </div>
-            </div>
-
-            <input type="hidden" name="event_id" value="<?php echo htmlspecialchars($event_id); ?>">
-            <input type="hidden" name="event_title" value="<?php echo htmlspecialchars($event_title); ?>">
-            <input type="hidden" name="event_date" value="<?php echo htmlspecialchars($event_date); ?>">
-            <input type="hidden" name="event_time" value="<?php echo htmlspecialchars($event_time); ?>">
-            <input type="hidden" name="event_location" value="<?php echo htmlspecialchars($event_location); ?>">
-            <input type="hidden" name="price" value="<?php echo htmlspecialchars($price); ?>">
-            <button type="submit" name="process_payment" class="pay-now-btn">Pay ₹<?php echo htmlspecialchars($price); ?></button>
-            
-            <div class="secure-badge">
-                <i class="fas fa-lock"></i>
-                <span>Your payment is secure and encrypted</span>
-            </div>
-        </form>
+        <button id="rzp-button">Pay Now</button>
     </div>
 
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
-        // Format the card number with spaces
-        document.querySelector('input[name="card_number"]')?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\s/g, '');    // Remove existing spaces
-            value = value.replace(/\D/g, '');                 // Remove non-digits
-            if (value.length > 16) {                          // Limit to 16 digits
-                value = value.slice(0, 16);
+        var options = {
+            "key": "rzp_test_iZLI83hLdG7JqU",
+            "amount": "<?php echo $price * 100; ?>",
+            "currency": "INR",
+            "name": "ArenaX",
+            "description": "Event Registration: <?php echo htmlspecialchars($event_title); ?>",
+            "image": "img/logo3.png",
+            "handler": function (response) {
+                // Redirect immediately
+                window.location.href = 'user_bookings.php';
+                
+                // Process payment in background
+                var formData = new FormData();
+                formData.append('event_id', '<?php echo $event_id; ?>');
+                formData.append('process_payment', '1');
+                formData.append('razorpay_payment_id', response.razorpay_payment_id);
+                formData.append('event_title', '<?php echo htmlspecialchars($event_title); ?>');
+                formData.append('event_date', '<?php echo htmlspecialchars($event_date); ?>');
+                formData.append('event_time', '<?php echo htmlspecialchars($event_time); ?>');
+                formData.append('event_location', '<?php echo htmlspecialchars($event_location); ?>');
+                formData.append('price', '<?php echo $price; ?>');
+
+                // Send request in background
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+            },
+            "prefill": {
+                "name": "<?php echo htmlspecialchars($user['name']); ?>",
+                "email": "<?php echo htmlspecialchars($user['email']); ?>"
+            },
+            "theme": {
+                "color": "#72aab0"
             }
-            
-            // Format with spaces after every 4 digits
-            let formattedValue = '';
-            for (let i = 0; i < value.length; i++) {
-                if (i > 0 && i % 4 === 0) {
-                    formattedValue += ' ';
-                }
-                formattedValue += value[i];
-            }
-            e.target.value = formattedValue;
-        });
-
-        // Format expiry date input
-        document.querySelector('input[name="expiry"]')?.addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length >= 2) {
-                value = value.slice(0, 2) + '/' + value.slice(2);
-            }
-            e.target.value = value;
-        });
-
-        // Add loading state to buttons during form submission
-        document.querySelectorAll('form').forEach(form => {
-            form.addEventListener('submit', (e) => {
-                if (validateForm(e.target)) {
-                    const button = e.target.querySelector('button');
-                    button.classList.add('loading');
-                    button.textContent = 'Processing...';
-                } else {
-                    e.preventDefault();
-                }
-            });
-        });
-
-        // Function to show success message
-        function showSuccess() {
-            document.getElementById('successMessage').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('successMessage').style.display = 'none';
-            }, 3000);
-        }
-
-        // Function to show error message
-        function showError() {
-            document.getElementById('errorMessage').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('errorMessage').style.display = 'none';
-            }, 3000);
+        };
+        var rzp = new Razorpay(options);
+        document.getElementById('rzp-button').onclick = function(e) {
+            rzp.open();
+            e.preventDefault();
         }
     </script>
 </body>

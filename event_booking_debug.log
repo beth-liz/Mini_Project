@@ -1,0 +1,158 @@
+[2025-03-22 13:54:06] Script started
+[2025-03-22 13:54:06] POST data: Array
+(
+    [event_id] => 1
+)
+
+[2025-03-22 13:54:06] SESSION data: Array
+(
+    [user_id] => 3
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [modal_shown] => 1
+    [error] => Premium membership required for direct booking.
+    [success] => Booking confirmed successfully!
+)
+
+[2025-03-22 13:54:06] User email: elizabethmaryabraham2027@mca.ajce.in
+[2025-03-22 13:54:06] User details: Array
+(
+    [user_id] => 3
+    [name] => Beth
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [mobile] => 9447185695
+    [membership_type] => premium
+)
+
+[2025-03-22 13:54:06] User does not have premium membership
+[2025-03-22 13:54:06] Error occurred: Premium membership required for direct booking.
+[2025-03-22 13:56:41] Script started
+[2025-03-22 13:56:41] POST data: Array
+(
+    [event_id] => 1
+)
+
+[2025-03-22 13:56:41] SESSION data: Array
+(
+    [user_id] => 3
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [modal_shown] => 1
+    [error] => Premium membership required for direct booking.
+    [success] => Booking confirmed successfully!
+)
+
+[2025-03-22 13:56:41] User email: elizabethmaryabraham2027@mca.ajce.in
+[2025-03-22 13:56:41] User details: Array
+(
+    [user_id] => 3
+    [name] => Beth
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [mobile] => 9447185695
+    [membership_type] => premium
+)
+
+[2025-03-22 13:56:41] User does not have premium membership
+[2025-03-22 13:56:41] Error occurred: Premium membership required for direct booking.
+[2025-03-22 14:02:14] Script started
+[2025-03-22 14:02:14] POST data: Array
+(
+    [event_id] => 1
+)
+
+[2025-03-22 14:02:14] SESSION data: Array
+(
+    [user_id] => 3
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [modal_shown] => 1
+    [error] => Premium membership required for direct booking.
+    [success] => Booking confirmed successfully!
+)
+
+[2025-03-22 14:02:14] User email: elizabethmaryabraham2027@mca.ajce.in
+[2025-03-22 14:02:15] User details: Array
+(
+    [user_id] => 3
+    [name] => Beth
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [mobile] => 9447185695
+    [membership_type] => premium
+)
+
+[2025-03-22 14:02:15] User does not have premium membership
+[2025-03-22 14:02:15] Error occurred: Premium membership required for direct booking.
+[2025-03-22 14:03:56] Script started
+[2025-03-22 14:03:56] POST data: Array
+(
+    [event_id] => 1
+)
+
+[2025-03-22 14:03:56] SESSION data: Array
+(
+    [user_id] => 3
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [modal_shown] => 1
+    [error] => Premium membership required for direct booking.
+    [success] => Booking confirmed successfully!
+)
+
+[2025-03-22 14:03:56] Getting user details for email: elizabethmaryabraham2027@mca.ajce.in
+[2025-03-22 14:03:56] User details: Array
+(
+    [user_id] => 3
+)
+
+[2025-03-22 14:03:56] User does not have premium membership
+[2025-03-22 14:03:56] Error occurred: Premium membership required for direct booking.
+[2025-03-22 14:04:44] Script started
+[2025-03-22 14:04:44] POST data: Array
+(
+    [event_id] => 1
+)
+
+[2025-03-22 14:04:44] SESSION data: Array
+(
+    [user_id] => 3
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [modal_shown] => 1
+    [error] => Premium membership required for direct booking.
+    [success] => Booking confirmed successfully!
+)
+
+[2025-03-22 14:04:44] User email: elizabethmaryabraham2027@mca.ajce.in
+[2025-03-22 14:04:44] User details: Array
+(
+    [user_id] => 3
+    [name] => Beth
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [mobile] => 9447185695
+    [membership_type] => premium
+)
+
+[2025-03-22 14:04:44] User does not have premium membership
+[2025-03-22 14:04:44] Error occurred: Premium membership required for direct booking.
+[2025-03-22 14:05:38] Script started
+[2025-03-22 14:05:38] POST data: Array
+(
+    [event_id] => 1
+)
+
+[2025-03-22 14:05:38] SESSION data: Array
+(
+    [user_id] => 3
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [modal_shown] => 1
+    [error] => Premium membership required for direct booking.
+    [success] => Booking confirmed successfully!
+)
+
+[2025-03-22 14:05:38] User email: elizabethmaryabraham2027@mca.ajce.in
+[2025-03-22 14:05:38] User details: Array
+(
+    [user_id] => 3
+    [name] => Beth
+    [email] => elizabethmaryabraham2027@mca.ajce.in
+    [mobile] => 9447185695
+    [membership_type] => premium
+)
+
+[2025-03-22 14:05:38] User does not have premium membership
+[2025-03-22 14:05:38] Error occurred: Premium membership required for direct booking.

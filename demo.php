@@ -8,17 +8,62 @@ if (!isset($_SESSION['email'])) {
     exit();
 }
 
-// Modify the existing SQL query to also fetch the user's name
-$user_email = $_SESSION['email']; // Define $user_email from session
-$sql = "SELECT membership_id, name FROM users WHERE email = '$user_email'";
-$stmt = $conn->query($sql); // Use query() to execute the SQL statement
-$user_name = "Profile"; // Default value
+// Fetch upcoming booking details
+$sql = "SELECT sa.sub_activity_id, san.sub_act_name, sa.sub_activity_image, sa.sub_activity_price, 
+        san.membership_type as required_membership,
+        GROUP_CONCAT(DISTINCT 
+            CASE 
+                WHEN ts.slot_date >= CURDATE() 
+                AND (ts.slot_date > CURDATE() 
+                    OR (ts.slot_date = CURDATE() AND ts.slot_end_time >= CURTIME()))
+                AND ts.current_participants < ts.max_participants
+                THEN DATE_FORMAT(ts.slot_date, '%Y-%m-%d')
+            END
+            ORDER BY ts.slot_date ASC
+        SEPARATOR '|') as available_dates,
+        GROUP_CONCAT(
+            CASE 
+                WHEN ts.slot_date >= CURDATE() 
+                AND (ts.slot_date > CURDATE() 
+                    OR (ts.slot_date = CURDATE() AND ts.slot_end_time >= CURTIME()))
+                AND ts.current_participants < ts.max_participants
+                THEN CONCAT(
+                    DATE_FORMAT(ts.slot_date, '%Y-%m-%d'), ':', 
+                    TIME_FORMAT(ts.slot_start_time, '%H:%i'), '|',
+                    TIME_FORMAT(ts.slot_end_time, '%H:%i')
+                )
+            END
+            SEPARATOR ';'
+        ) as all_slots
+        FROM sub_activity sa
+        LEFT JOIN timeslots ts ON sa.sub_activity_id = ts.sub_activity_id 
+        LEFT JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
+        WHERE sa.activity_id = 3
+        AND (ts.current_participants IS NULL OR ts.current_participants < ts.max_participants)
+        GROUP BY sa.sub_activity_id";
 
-if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $membership_id = $row['membership_id'];
-    $user_name = $row['name'];
+try {
+    $stmt = $conn->prepare($sql);
+    $stmt->execute();
+    $activities = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log("Error in user_fitness.php: " . $e->getMessage());
+    // Handle error appropriately
 }
+
+// Fetch user's membership type
+$user_email = $_SESSION['email'];
+$sql = "SELECT u.membership_id, u.name, m.membership_type 
+        FROM users u 
+        JOIN memberships m ON u.membership_id = m.membership_id 
+        WHERE u.email = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bindParam(1, $user_email);
+$stmt->execute();
+$userData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$user_name = isset($userData['name']) ? $userData['name'] : "Profile";
+$membership_type = isset($userData['membership_type']) ? strtolower($userData['membership_type']) : "normal";
 ?>
 
 <!DOCTYPE html>
@@ -26,7 +71,8 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendar</title>
+    <title>Fitness Activities</title>
+    
     <!-- Favicon link -->
     <link rel="icon" href="img/logo3.png" type="image/png">
     
@@ -45,12 +91,81 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
 
         body {
             font-family: 'Cinzel Decorative', cursive;
-            background: url('img/out1.png') no-repeat center center;
-            background-size: cover;
+            color: #333;
             overflow-x: hidden;
         }
 
-        
+        /* First Section: Hero Image for Indoor Games */
+        .hero-section {
+            position: relative;
+            width: 100%;
+            height: 80vh;
+            background: url('img/r10.jpg') no-repeat center center;
+            background-size: cover;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .hero-text {
+            color: white;
+            font-size: 3rem;
+            font-weight: bold;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 1.5s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Update scroll down arrow styles to match homepage */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 60%;
+            cursor: pointer;
+            z-index: 10;
+            animation: bounce 2s infinite;
+        }
+
+        .scroll-indicator::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            border-left: 3px solid white;
+            border-bottom: 3px solid white;
+            transform: translateX(-50%) rotate(-45deg);
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateX(-50%) translateY(0);
+            }
+            40% {
+                transform: translateX(-50%) translateY(-10px);
+            }
+            60% {
+                transform: translateX(-50%) translateY(-5px);
+            }
+        }
+
         .header {
             position: fixed;
             top: 0;
@@ -234,7 +349,114 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
             }
         }
 
-        
+        /* Third Section - Grid of Indoor Game Images */
+        .image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            gap: 1rem;
+            padding: 4rem 2rem;
+            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/r14.jpg') no-repeat center center;
+            background-size: cover;
+            background-attachment: fixed;
+            margin-top: -2rem; /* Remove gap between heading and grid */
+        }
+
+        .image-grid img {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+            border-radius: 10px;
+            transition: transform 0.3s ease;
+        }
+
+        /* Remove zoom effect on hover */
+        .image-grid img:hover {
+            transform: none;
+        }
+
+        /* Make sure to have four images per row */
+        .image-grid .image {
+            width: calc(25% - 1rem);
+            margin-bottom: 1rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .image-grid .image:hover {
+            transform: scale(1.05);
+        }
+
+        /* Hide text and button initially */
+        .image-grid .overlay {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            width: 100%;
+            transition: all 0.5s ease;
+        }
+
+        /* On hover, the text and button slide into view */
+        .image-grid .image:hover .overlay {
+            background: rgba(29, 32, 33, 0.27);
+            top: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Text for images */
+        .image-grid .overlay h3 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            transition: top 0.5s ease;
+            color: white;
+            font-family: 'Bodoni Moda', serif;
+        }
+
+        /* "Book Now" button */
+        .image-grid .overlay .book-now {
+            background-color: #00bcd4;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            font-size: 1.1rem;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s ease, top 0.5s ease;
+            margin-top: 10px;
+            font-family: 'Bodoni Moda', serif;
+        }
+
+        .image-grid .image:hover .overlay .book-now {
+            opacity: 1;
+            top: 20px;
+        }
+
+        @media screen and (max-width: 768px) {
+            .image-grid .image {
+                width: calc(50% - 1rem); /* 2 images per row for smaller screens */
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .image-grid .image {
+                width: 100%; /* 1 image per row for very small screens */
+            }
+        }
+
         /* Footer Styles */
         footer {
             background-color: #282c34;
@@ -323,7 +545,48 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
             }
         }
 
-        
+        /* Add styles for the activities heading */
+        .activities-heading {
+            text-align: center;
+            padding: 4rem 0 2rem 0;
+            position: relative;
+            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/r14.jpg') no-repeat center center;
+            background-size: cover;
+            background-attachment: fixed;
+        }
+
+        .activities-heading h2 {
+            font-size: 2.8rem;
+            color: white;
+            font-family: 'Bodoni Moda', serif;
+            position: relative;
+            display: inline-block;
+        }
+
+        .activities-heading h2::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 3px;
+            background: linear-gradient(90deg, #00bcd4, #ff4081, #00bcd4);
+            background-size: 200% 100%;
+            animation: gradientMove 3s ease infinite;
+        }
+
+        @keyframes gradientMove {
+            0% {
+                background-position: 100% 0;
+            }
+            50% {
+                background-position: 0 0;
+            }
+            100% {
+                background-position: 100% 0;
+            }
+        }
 
         /* Dropdown styles */
         .dropdown {
@@ -371,273 +634,376 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
             border-right: 8px solid transparent;
             border-bottom: 8px solid rgba(0, 0, 0, 0.9);
         }
-        .container {
-            max-width: 1000px;
-            margin: 130px auto;
-            background-color: rgba(9, 38, 58, 0.57);
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(139, 213, 250, 0.2);
-            padding: 25px;
-            font-family: 'Bodoni Moda', serif;
-        }
-        
-        h1 {
-            text-align: center;
-            color:rgb(87, 222, 246); /* Deep purple */
-            margin-bottom: 25px;
-            font-weight: 600;
-        }
-        
-        .calendar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid rgb(102, 224, 255); /* Light purple border */
-        }
-        
-        .calendar-nav {
-            display: flex;
-            gap: 12px;
-        }
-        
-        button {
-            background-color:rgb(112, 190, 219); /* Medium purple */
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 500;
-            box-shadow: 0 4px 8px rgba(112, 201, 219, 0.2);
-        }
-        
-        button:hover {
-            background-color:rgb(91, 176, 213); /* Darker purple on hover */
-            transform: translateY(-2px);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        #addEventBtn {
-            background-color:rgb(133, 231, 255); /* Soft pink */
-            box-shadow: 0 4px 8px rgba(255, 133, 162, 0.3);
-        }
-        
-        #addEventBtn:hover {
-            background-color:rgb(48, 210, 228); /* Deeper pink on hover */
-        }
-        
-        .month-year {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color:rgb(96, 212, 235); /* Deep purple */
-            text-shadow: 1px 1px 2px rgba(50, 153, 160, 0.1);
-        }
-        
-        .calendar {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-        
-        .day-header {
-            text-align: center;
-            font-weight: bold;
-            padding: 12px;
-            background-color:rgb(224, 249, 255); /* Very light purple */
-            border-radius: 8px;
-            color:rgb(47, 187, 202); /* Deep purple */
-        }
-        
-        .day {
-            min-height: 110px;
-            border: 1px solid rgb(164, 240, 255); /* Light purple border */
-            padding: 10px;
-            background-color: black; /* Change background color to black */
-            position: relative;
-            cursor: pointer;
-            border-radius: 10px;
-            transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
-        }
-        
-        .day:hover {
-            background-color: rgb(30, 30, 30); /* Darker shade on hover */
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(106, 50, 160, 0.1);
-        }
-        
-        .day-number {
-            font-weight: bold;
-            margin-bottom: 8px;
-            color:rgb(75, 192, 212); /* Deep purple */
-            font-size: 1.1rem;
-            text-align: right;
-        }
-        
-        .day.inactive {
-            background-color:rgb(225, 247, 251); /* Even lighter purple for inactive days */
-            color:rgb(182, 224, 226); /* Medium-light purple */
-            box-shadow: none;
-        }
-        
-        .day.inactive:hover {
-            transform: none;
-            box-shadow: none;
-        }
-        
-        .event {
-            background: linear-gradient(to right,rgb(133, 233, 255),rgb(167, 230, 255)); /* Pink gradient */
-            color: white;
-            padding: 6px 10px;
-            border-radius: 20px;
-            margin-bottom: 5px;
-            font-size: 0.85rem;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(133, 249, 255, 0.25);
-            transition: transform 0.2s;
-        }
-        
-        .event:hover {
-            transform: translateX(3px);
-        }
-        
+
+        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
-            z-index: 1;
-            left: 0;
             top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            overflow: auto;
-            background-color: rgba(50, 143, 160, 0.4); /* Purple tinted overlay */
-            backdrop-filter: blur(3px);
-        }
-        
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 25px;
-            border: 1px solid #e6d8ff;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(50, 131, 160, 0.2);
-            animation: modalFadeIn 0.3s;
-        }
-        
-        @keyframes modalFadeIn {
-            from {opacity: 0; transform: translateY(-20px);}
-            to {opacity: 1; transform: translateY(0);}
-        }
-        
-        .close {
-            color:rgb(182, 215, 226); /* Medium-light purple */
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        
-        .close:hover {
-            color:rgb(50, 132, 160); /* Deep purple */
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        h2 {
-            color:rgb(50, 154, 160); /* Deep purple */
-            margin-top: 5px;
-            border-bottom: 2px solid #f0e6ff;
-            padding-bottom: 10px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color:rgb(91, 199, 213); /* Darker purple */
-        }
-        
-        input, textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid rgb(216, 251, 255); /* Light purple border */
-            border-radius: 8px;
-            box-sizing: border-box;
-            transition: border-color 0.3s;
-            font-family: inherit;
-        }
-        
-        input:focus, textarea:focus {
-            border-color:rgb(112, 215, 219); /* Medium purple */
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(147, 112, 219, 0.2);
-        }
-        
-        textarea {
-            height: 120px;
-            resize: vertical;
-        }
-        
-        .form-actions {
-            text-align: right;
-            margin-top: 25px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-        
-        #deleteEvent {
-            background-color: #FF6B8B; /* Deeper pink */
-            box-shadow: 0 4px 8px rgba(255, 107, 139, 0.25);
-        }
-        
-        #deleteEvent:hover {
-            background-color: #FF4F75; /* Even deeper pink on hover */
-        }
-        
-        #saveEvent {
-            min-width: 100px;
-        }
-        
-        /* Day highlighting for current day */
-        .day.today {
-            background-color:rgb(233, 251, 255);
-            border: 2px solid rgb(105, 253, 253);
-        }
-        
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background:rgb(240, 251, 255);
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background:rgb(182, 213, 226);
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background:rgb(112, 207, 219);
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1001;
+            overflow-y: auto;
         }
 
-        
+        .modal-content {
+            position: relative;
+            background: rgba(76, 132, 196, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            margin: 5% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 600px;
+            border-radius: 10px;
+            color: white;
+            font-family: 'Bodoni Moda', serif;
+        }
+
+        .close-modal {
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            font-size: 30px;
+            cursor: pointer;
+            color: white;
+            transition: color 0.3s ease;
+        }
+
+        .close-modal:hover {
+            color: #00bcd4;
+        }
+
+        .modal-body {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .modal-image-container {
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .modal-image-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .modal-details {
+            flex: 1;
+            padding: 0 20px;
+        }
+
+        .modal-details h2 {
+            font-family: 'Bodoni Moda', serif;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            color: white;
+            text-align: center;
+        }
+
+        .activity-details {
+            margin-bottom: 20px;
+        }
+
+        .detail-row {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+
+        .detail-label {
+            font-family: 'Bodoni Moda', serif;
+            font-weight: bold;
+            color: #00bcd4;
+            display: block;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .time-slot-select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 5px;
+            font-family: 'Aboreto', cursive;
+        }
+
+        .time-slot-select option {
+            background: #2c3e50;
+            color: white;
+        }
+
+        .price {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00bcd4;
+        }
+
+        .proceed-payment {
+            background-color: #00bcd4;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Bodoni Moda', serif;
+            width: 100%;
+        }
+
+        .proceed-payment:hover {
+            background-color: #008ba3;
+            transform: translateY(-2px);
+        }
+
+        .proceed-payment:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        @media screen and (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+        }
+
+        .time-slot-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .time-slot-button {
+            padding: 10px 20px;
+            border: 2px solid #00bcd4;
+            background-color: transparent;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Bodoni Moda', serif;
+            font-size: 1rem;
+            min-width: 200px; /* Ensure buttons are wide enough for the time format */
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        .time-slot-button:hover {
+            background-color: rgba(0, 188, 212, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
+        }
+
+        .time-slot-button.selected {
+            background-color: #00bcd4;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
+        }
+
+        .time-slot-button:disabled {
+            border-color: #666;
+            color: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .detail-row {
+            margin-bottom: 20px;
+        }
+
+        .time-slot-select {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 5px;
+            font-family: 'Aboreto', cursive;
+            margin-bottom: 10px;
+        }
+
+        .time-slot-select option {
+            background: #2c3e50;
+            color: white;
+        }
+
+        /* Add these styles for the date picker */
+        input[type="date"] {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 5px;
+            font-family: 'Aboreto', cursive;
+            margin-bottom: 10px;
+        }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            cursor: pointer;
+        }
+
+        /* Add styles for upgrade modal */
+        .upgrade-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .upgrade-modal-content {
+            background: rgba(76, 132, 196, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 40px;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+        }
+
+        .upgrade-modal h2 {
+            color: #00bcd4;
+            margin-bottom: 20px;
+        }
+
+        .upgrade-button {
+            background-color: #00bcd4;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Bodoni Moda', serif;
+            margin-top: 20px;
+        }
+
+        .upgrade-button:hover {
+            background-color: #008ba3;
+            transform: translateY(-2px);
+        }
+
+        /* Add these styles to your existing CSS */
+        .booking-type-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .booking-type-btn {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Bodoni Moda', serif;
+            border-radius: 5px;
+        }
+
+        .booking-type-btn.active {
+            background: #00bcd4;
+            border-color: #00bcd4;
+        }
+
+        .booking-options {
+            display: none;
+        }
+
+        .booking-options.active {
+            display: block;
+        }
+
+        .days-of-week-container {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .day-box {
+            width: 50px;
+            height: 50px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-family: 'Bodoni Moda', serif;
+            font-size: 0.9rem;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .day-box:hover {
+            border-color: #00bcd4;
+            background: rgba(0, 188, 212, 0.1);
+        }
+
+        .day-box.selected {
+            background: #00bcd4;
+            border-color: #00bcd4;
+            color: white;
+        }
+
+        .recurring-summary {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .recurring-summary ul {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0 0 0;
+        }
+
+        .recurring-summary li {
+            margin-bottom: 5px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .recurring-summary li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: #00bcd4;
+        }
     </style>
 </head>
 <body>
@@ -665,312 +1031,7 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
             </div>
         </div>
     </header>
-    <div class="container">
-        <h1>My Calendar</h1>
-        
-        <div class="calendar-header">
-            <div class="calendar-nav">
-                <button id="prevMonth">← Previous</button>
-                <button id="nextMonth">Next →</button>
-            </div>
-            <div class="month-year" id="monthYear"></div>
-            <button id="addEventBtn">+ Add Event</button>
-        </div>
-        
-        <div class="calendar" id="calendar">
-            <!-- Calendar will be generated with JavaScript -->
-        </div>
-    </div>
-    
-    <!-- Event Modal -->
-    <div id="eventModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modalTitle">Add Event</h2>
-            <form id="eventForm">
-                <input type="hidden" id="eventId" value="">
-                <input type="hidden" id="eventDate" value="">
-                
-                <div class="form-group">
-                    <label for="eventTitle">Event Title:</label>
-                    <input type="text" id="eventTitle" name="eventTitle" required placeholder="Enter event title...">
-                </div>
-                
-                <div class="form-group">
-                    <label for="eventTime">Time:</label>
-                    <input type="time" id="eventTime" name="eventTime">
-                </div>
-                
-                <div class="form-group">
-                    <label for="eventDescription">Description:</label>
-                    <textarea id="eventDescription" name="eventDescription" placeholder="Add details about your event..."></textarea>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" id="deleteEvent">Delete</button>
-                    <button type="submit" id="saveEvent">Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Calendar state
-            let currentDate = new Date();
-            let events = [];
-            
-            // DOM elements
-            const calendar = document.getElementById('calendar');
-            const monthYear = document.getElementById('monthYear');
-            const prevMonthBtn = document.getElementById('prevMonth');
-            const nextMonthBtn = document.getElementById('nextMonth');
-            const addEventBtn = document.getElementById('addEventBtn');
-            const eventModal = document.getElementById('eventModal');
-            const closeModal = document.querySelector('.close');
-            const eventForm = document.getElementById('eventForm');
-            const modalTitle = document.getElementById('modalTitle');
-            const eventIdInput = document.getElementById('eventId');
-            const eventDateInput = document.getElementById('eventDate');
-            const eventTitleInput = document.getElementById('eventTitle');
-            const eventTimeInput = document.getElementById('eventTime');
-            const eventDescriptionInput = document.getElementById('eventDescription');
-            const saveEventBtn = document.getElementById('saveEvent');
-            const deleteEventBtn = document.getElementById('deleteEvent');
-            
-            // Initialize calendar
-            renderCalendar();
-            fetchEvents();
-            
-            // Event listeners
-            prevMonthBtn.addEventListener('click', () => {
-                currentDate.setMonth(currentDate.getMonth() - 1);
-                renderCalendar();
-            });
-            
-            nextMonthBtn.addEventListener('click', () => {
-                currentDate.setMonth(currentDate.getMonth() + 1);
-                renderCalendar();
-            });
-            
-            addEventBtn.addEventListener('click', () => {
-                openModal();
-            });
-            
-            closeModal.addEventListener('click', () => {
-                eventModal.style.display = 'none';
-            });
-            
-            window.addEventListener('click', (event) => {
-                if (event.target === eventModal) {
-                    eventModal.style.display = 'none';
-                }
-            });
-            
-            eventForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                saveEvent();
-            });
-            
-            deleteEventBtn.addEventListener('click', () => {
-                deleteEvent();
-            });
-            
-            // Functions
-            function renderCalendar() {
-                // Clear calendar
-                calendar.innerHTML = '';
-                
-                // Update month and year display
-                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                monthYear.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-                
-                // Add day headers
-                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                dayNames.forEach(day => {
-                    const dayHeader = document.createElement('div');
-                    dayHeader.className = 'day-header';
-                    dayHeader.textContent = day;
-                    calendar.appendChild(dayHeader);
-                });
-                
-                // Get first day of month and number of days
-                const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-                const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-                const daysInMonth = lastDay.getDate();
-                const startingDayOfWeek = firstDay.getDay();
-                
-                // Add blank cells for days before start of month
-                for (let i = 0; i < startingDayOfWeek; i++) {
-                    const blankDay = document.createElement('div');
-                    blankDay.className = 'day inactive';
-                    calendar.appendChild(blankDay);
-                }
-                
-                // Get today's date for highlighting current day
-                const today = new Date();
-                const isCurrentMonth = today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear();
-                
-                // Add days of the month
-                for (let i = 1; i <= daysInMonth; i++) {
-                    const dayCell = document.createElement('div');
-                    
-                    // Add "today" class if this is the current day
-                    if (isCurrentMonth && i === today.getDate()) {
-                        dayCell.className = 'day today';
-                    } else {
-                        dayCell.className = 'day';
-                    }
-                    
-                    const dayNumber = document.createElement('div');
-                    dayNumber.className = 'day-number';
-                    dayNumber.textContent = i;
-                    dayCell.appendChild(dayNumber);
-                    
-                    // Format date string for comparison with events
-                    const dateStr = formatDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), i));
-                    dayCell.dataset.date = dateStr;
-                    
-                    // Add click event to open modal for this day
-                    dayCell.addEventListener('click', () => {
-                        openModal(null, dateStr);
-                    });
-                    
-                    calendar.appendChild(dayCell);
-                }
-                
-                // Add events to calendar
-                displayEvents();
-            }
-            
-            function displayEvents() {
-                // Clear existing events from calendar
-                document.querySelectorAll('.event').forEach(el => el.remove());
-                
-                // Add events to corresponding days
-                events.forEach(event => {
-                    const dayCell = document.querySelector(`.day[data-date="${event.date}"]`);
-                    if (dayCell) {
-                        const eventEl = document.createElement('div');
-                        eventEl.className = 'event';
-                        eventEl.textContent = `${event.time ? event.time + ': ' : ''}${event.title}`;
-                        eventEl.title = event.description || event.title;
-                        
-                        // Add click event to open modal with this event
-                        eventEl.addEventListener('click', (e) => {
-                            e.stopPropagation(); // Prevent triggering the day cell click
-                            openModal(event);
-                        });
-                        
-                        dayCell.appendChild(eventEl);
-                    }
-                });
-            }
-            
-            function openModal(event = null, dateStr = null) {
-                if (event) {
-                    // Edit existing event
-                    modalTitle.textContent = 'Edit Event';
-                    eventIdInput.value = event.id;
-                    eventDateInput.value = event.date;
-                    eventTitleInput.value = event.title;
-                    eventTimeInput.value = event.time || '';
-                    eventDescriptionInput.value = event.description || '';
-                    deleteEventBtn.style.display = 'inline-block';
-                } else {
-                    // Add new event
-                    modalTitle.textContent = 'Add Event';
-                    eventForm.reset();
-                    eventIdInput.value = '';
-                    eventDateInput.value = dateStr || formatDate(new Date());
-                    deleteEventBtn.style.display = 'none';
-                }
-                
-                eventModal.style.display = 'block';
-            }
-            
-            function saveEvent() {
-                const eventData = {
-                    id: eventIdInput.value || Date.now().toString(),
-                    date: eventDateInput.value,
-                    title: eventTitleInput.value,
-                    time: eventTimeInput.value,
-                    description: eventDescriptionInput.value
-                };
-                
-                // Use AJAX to save event to PHP backend
-                fetch('save_event.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(eventData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // If successful, update local events and close modal
-                        fetchEvents();
-                        eventModal.style.display = 'none';
-                    } else {
-                        alert('Error saving event: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error saving event. Please try again.');
-                });
-            }
-            
-            function deleteEvent() {
-                const eventId = eventIdInput.value;
-                
-                if (confirm('Are you sure you want to delete this event?')) {
-                    fetch('delete_event.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ id: eventId })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // If successful, update local events and close modal
-                            fetchEvents();
-                            eventModal.style.display = 'none';
-                        } else {
-                            alert('Error deleting event: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Error deleting event. Please try again.');
-                    });
-                }
-            }
-            
-            function fetchEvents() {
-                // Fetch events from PHP backend
-                fetch('get_events.php')
-                .then(response => response.json())
-                .then(data => {
-                    events = data;
-                    displayEvents();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-            }
-            
-            function formatDate(date) {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            }
-        });
-    </script>
+
     <script>
         const header = document.querySelector('.header');
         window.addEventListener('scroll', () => {
@@ -982,13 +1043,123 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
         });
     </script>
 
-    
-    
+    <!-- First Section: Hero Image for Indoor Games -->
+    <section class="hero-section">
+        <div class="hero-text">
+            gym activities
+        </div>
+        <div class="scroll-indicator" onclick="scrollToAbout()"></div>
+    </section>
 
-   
-   
+    <!-- Second Section: About What We Offer for Indoor Games -->
+    <section class="about-section">
+        <div class="about-content" style="margin-bottom: -2rem; margin-top: -2rem;">
+            <h2 style="font-family: 'Bodoni Moda', serif;">What We Offer</h2>
+        </div>
+        <div style="display: flex; align-items: center; gap: 3rem;">
+            <div class="about-image">
+                <img src="img/r6.jpg" alt="About Indoor Games">
+            </div>
+            <div class="about-content">
+                <p style="font-family: 'Bodoni Moda', serif; font-size: 1.4rem;">
+                Welcome to FitZone, your ultimate destination for achieving your fitness goals. From top-of-the-line cardio equipment to strength training machines, we provide everything you need to stay fit and healthy. Join our community of fitness enthusiasts and start your transformation today!
+                </p>
+            </div>
+        </div>
+    </section>
 
-    
+    <!-- Update the HTML structure to combine the sections -->
+    <div class="activities-heading">
+        <h2>OUR ACTIVITIES</h2>
+    </div>
+
+    <section class="image-grid">
+        <?php if (!empty($activities)): ?>
+            <?php foreach ($activities as $activity): ?>
+                <div class="image">
+                    <img src="<?php echo htmlspecialchars($activity['sub_activity_image']); ?>" alt="<?php echo htmlspecialchars($activity['sub_act_name']); ?>">
+                    <div class="overlay">
+                        <h3><?php echo htmlspecialchars($activity['sub_act_name']); ?></h3>
+                        <button class="book-now" onclick="openBookingModal(<?php echo htmlspecialchars(json_encode($activity)); ?>)">Book Now</button>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p>No activities available.</p>
+        <?php endif; ?>
+    </section>
+
+    <!-- Update the modal HTML -->
+    <div id="bookingModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div class="modal-body">
+                <h2 style="text-align: center; margin-bottom: 20px; color: #00bcd4;">DETAILS</h2>
+                <div class="modal-image-container">
+                    <img id="modalImage" src="" alt="Activity Image">
+                </div>
+                <div class="modal-details">
+                    <h2 id="modalTitle"></h2>
+                    <div class="activity-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Activity:</span>
+                            <span id="modalActivityName"></span>
+                        </div>
+                        
+                        <!-- Add booking type buttons -->
+                        <div class="detail-row">
+                            <span class="detail-label">Booking Type:</span>
+                            <div class="booking-type-container">
+                                <button class="booking-type-btn active" data-type="single">Single Booking</button>
+                                <button class="booking-type-btn" data-type="recurring">Recurring Booking</button>
+                            </div>
+                        </div>
+
+                        <div class="detail-row">
+                            <!-- Single booking options (default) -->
+                            <div id="single-booking-options" class="booking-options active">
+                                <span class="detail-label">Select Date:</span>
+                                <div id="dateContainer">
+                                    <input type="date" id="datePicker" class="time-slot-select">
+                                </div>
+                                <span class="detail-label">Available Time Slots:</span>
+                                <div id="timeSlotContainer" class="time-slot-buttons">
+                                    <!-- Time slot buttons will be inserted here -->
+                                </div>
+                            </div>
+
+                            <!-- Recurring booking options -->
+                            <div id="recurring-booking-options" class="booking-options">
+                                <!-- Recurring booking options will be hidden for normal members -->
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Price:</span>
+                            <span class="price">₹<span id="modalPrice"></span></span>
+                        </div>
+                    </div>
+                    <button class="proceed-payment" onclick="proceedToPayment()" id="proceedBtn" disabled>Proceed to Payment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add the upgrade modal HTML before the closing body tag -->
+    <div id="upgradeModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeUpgradeModal()">&times;</span>
+            <div class="modal-body">
+                <h2 style="text-align: center; margin-bottom: 20px; color: #00bcd4;">MEMBERSHIP REQUIRED</h2>
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <i class="fas fa-lock" style="font-size: 60px; color: #00bcd4; margin-bottom: 20px;"></i>
+                    <p style="font-size: 1.2rem; margin-bottom: 20px;">This activity requires a higher membership level.</p>
+                    <p id="upgradeMessage" style="font-size: 1.1rem; margin-bottom: 30px;"></p>
+                </div>
+                <button style="background-color: #00bcd4; color: white; border: none; padding: 12px 30px; font-size: 1.1rem; border-radius: 5px; cursor: pointer; transition: all 0.3s ease; font-family: 'Bodoni Moda', serif; margin-top: 20px;" onclick="window.location.href='user_home.php?showMembershipModal=true'">Upgrade Membership</button>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <div class="footer-container">
             <div class="footer-column">
@@ -1082,7 +1253,456 @@ if ($stmt && $stmt->rowCount() > 0) { // Use rowCount() to check for rows
             event.stopPropagation();
         });
 
+        // Add the JavaScript functions for modal handling
+        let selectedTimeSlot = null;
+        let selectedDays = new Set();
+
+        function formatTime(timeStr) {
+            const [hours, minutes] = timeStr.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        // Add current membership as a JavaScript variable for access in your script
+        const userMembership = "<?php echo $membership_type; ?>";
         
+        // Modify the openBookingModal function to check membership requirements
+        function openBookingModal(activity) {
+            // Check if user has required membership level
+            const membershipRequired = activity.required_membership.toLowerCase();
+            const membershipLevels = ['normal', 'standard', 'premium'];
+            const userLevel = membershipLevels.indexOf(userMembership);
+            const requiredLevel = membershipLevels.indexOf(membershipRequired);
+            
+            if (userLevel < requiredLevel) {
+                // User doesn't have required membership - show upgrade modal
+                const upgradeModal = document.getElementById('upgradeModal');
+                const upgradeMessage = document.getElementById('upgradeMessage');
+                upgradeMessage.textContent = `Your current membership: ${userMembership.toUpperCase()}. This activity requires ${membershipRequired.toUpperCase()} membership.`;
+                upgradeModal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                return;
+            }
+            
+            // User has required membership - proceed with original booking modal
+            const modal = document.getElementById('bookingModal');
+            const modalImage = document.getElementById('modalImage');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalActivityName = document.getElementById('modalActivityName');
+            const modalPrice = document.getElementById('modalPrice');
+            const datePicker = document.getElementById('datePicker');
+            const timeSlotContainer = document.getElementById('timeSlotContainer');
+            const proceedBtn = document.getElementById('proceedBtn');
+
+            // Set the modal content
+            modalImage.src = activity.sub_activity_image;
+            modalTitle.textContent = activity.sub_act_name;
+            modalActivityName.textContent = activity.sub_act_name;
+            modalPrice.textContent = activity.sub_activity_price;
+
+            // Clear existing selections
+            timeSlotContainer.innerHTML = '';
+            selectedTimeSlot = null;
+            proceedBtn.disabled = true;
+
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            datePicker.min = today;
+            datePicker.value = today;
+
+            // Show the modal
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            // Trigger initial time slots fetch
+            fetchTimeSlots(activity.sub_activity_id, today);
+        }
+
+        // Separate function to handle date changes
+        function handleDateChange(event) {
+            const selectedDate = event.target.value;
+            const subActivityId = event.target.dataset.subActivityId;
+            if (selectedDate && subActivityId) {
+                fetchTimeSlots(subActivityId, selectedDate);
+            }
+        }
+
+        // Fetch time slots from the database based on selected date and sub-activity
+        function fetchTimeSlots(subActivityId, selectedDate) {
+            const timeSlotContainer = document.getElementById('timeSlotContainer');
+            const proceedBtn = document.getElementById('proceedBtn');
+
+            timeSlotContainer.innerHTML = ''; // Clear previous time slots
+            proceedBtn.disabled = true; // Disable proceed button
+
+            fetch(`fetch_time_slots.php?sub_activity_id=${subActivityId}&date=${selectedDate}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        data.forEach(slot => {
+                            const button = document.createElement('button');
+                            button.className = 'time-slot-button';
+                            const formattedStart = formatTime(slot.slot_start_time);
+                            const formattedEnd = formatTime(slot.slot_end_time);
+                            button.textContent = `${formattedStart} - ${formattedEnd}`;
+                            button.onclick = function() {
+                                document.querySelectorAll('.time-slot-button').forEach(btn => {
+                                    btn.classList.remove('selected');
+                                });
+                                this.classList.add('selected');
+                                selectedTimeSlot = `${formattedStart} - ${formattedEnd}`;
+                                proceedBtn.disabled = false;
+                            };
+                            timeSlotContainer.appendChild(button);
+                        });
+                    } else {
+                        timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">No time slots available for this date.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching time slots:', error);
+                    timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">Error loading time slots.</p>';
+                });
+        }
+
+        function proceedToPayment() {
+            const bookingType = document.querySelector('.booking-type-btn.active').dataset.type;
+            const activityId = document.getElementById('datePicker').dataset.subActivityId;
+            const activityName = document.getElementById('modalActivityName').textContent;
+            const price = document.getElementById('modalPrice').textContent;
+
+            if (bookingType === 'single') {
+                // Single booking logic
+                const selectedDate = document.getElementById('datePicker').value;
+                const selectedTimeSlot = document.querySelector('.time-slot-button.selected');
+                
+                if (!selectedDate || !selectedTimeSlot) {
+                    alert('Please select both date and time slot');
+                    return;
+                }
+
+                // Create form for submission
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'payment.php';
+
+                // Prepare form data
+                const formData = {
+                    'activity': activityName,
+                    'activity_id': activityId,
+                    'date': selectedDate,
+                    'timeslot': selectedTimeSlot.textContent,
+                    'price': price,
+                    'booking_type': 'single'
+                };
+
+                // Add form fields
+                for (const [key, value] of Object.entries(formData)) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    form.appendChild(input);
+                }
+
+                // Debug log
+                console.log('Submitting form with data:', formData);
+
+                // Add form to document and submit
+                document.body.appendChild(form);
+                form.submit();
+
+            } else {
+                // Recurring booking logic
+                const startDate = document.getElementById('recurring-start-date').value;
+                const weeks = document.getElementById('recurring-weeks').value;
+                const selectedTime = document.getElementById('recurring-time').value;
+                
+                if (!startDate || !selectedTime || selectedDays.size === 0) {
+                    alert('Please select start date, time, and at least one day of the week');
+                    return;
+                }
+
+                const totalSessions = selectedDays.size * parseInt(weeks);
+                const pricePerSession = parseFloat(price);
+                const totalPrice = totalSessions * pricePerSession;
+
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'payment.php';
+
+                const formData = {
+                    'activity': activityName,
+                    'booking_type': 'recurring',
+                    'activity_id': activityId,
+                    'start_date': startDate,
+                    'weeks': weeks,
+                    'selected_days': JSON.stringify(Array.from(selectedDays)),
+                    'booking_time': selectedTime,
+                    'total_sessions': totalSessions,
+                    'price': totalPrice,
+                    'price_per_session': pricePerSession
+                };
+
+                for (const [key, value] of Object.entries(formData)) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    form.appendChild(input);
+                }
+
+                // Debug log
+                console.log('Submitting recurring booking form with data:', formData);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+
+        // Close modal when clicking the close button
+        document.querySelector('.close-modal').addEventListener('click', function() {
+            document.getElementById('bookingModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        });
+
+        // Close modal when clicking outside the modal content
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('bookingModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        // Add these new functions
+        function initializeRecurringBooking() {
+            const dayBoxes = document.querySelectorAll('.day-box');
+            const startDate = document.getElementById('recurring-start-date');
+            const weeksSelect = document.getElementById('recurring-weeks');
+            const timeSelect = document.getElementById('recurring-time');
+            
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            startDate.min = today;
+            startDate.value = today;
+
+            // Handle day selection
+            dayBoxes.forEach(box => {
+                box.addEventListener('click', function() {
+                    const day = this.dataset.day;
+                    if (this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        selectedDays.delete(day);
+                    } else {
+                        this.classList.add('selected');
+                        selectedDays.add(day);
+                    }
+                    updateRecurringSummary();
+                    validateRecurringBooking();
+                });
+            });
+
+            // Handle date and weeks changes
+            startDate.addEventListener('change', updateRecurringSummary);
+            weeksSelect.addEventListener('change', updateRecurringSummary);
+            timeSelect.addEventListener('change', validateRecurringBooking);
+        }
+
+        // Add event listeners to booking type buttons
+        document.querySelectorAll('.booking-type-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.booking-type-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Hide all booking options
+                document.querySelectorAll('.booking-options').forEach(option => {
+                    option.classList.remove('active');
+                });
+                
+                // Show selected booking option
+                const bookingType = this.dataset.type;
+
+                // Check if the user is trying to select recurring booking with normal membership
+                if (bookingType === 'recurring' && userMembership === 'normal') {
+                    // Show upgrade modal
+                    const upgradeModal = document.getElementById('upgradeModal');
+                    const upgradeMessage = document.getElementById('upgradeMessage');
+                    upgradeMessage.textContent = `Your current membership: ${userMembership.toUpperCase()}. This activity requires a higher membership level for recurring bookings.`;
+                    upgradeModal.style.display = 'block';
+                    document.body.style.overflow = 'hidden';
+
+                    // Stay in single booking options
+                    document.getElementById('single-booking-options').classList.add('active'); // Keep single booking active
+                    this.classList.remove('active'); // Remove active class from recurring button
+                    return; // Prevent further execution
+                }
+
+                // Show selected booking option
+                document.getElementById(`${bookingType}-booking-options`).classList.add('active');
+                
+                // Reset proceed button
+                document.getElementById('proceedBtn').disabled = true;
+            });
+        });
+
+        function fetchRecurringTimeSlots(subActivityId) {
+            const timeSelect = document.getElementById('recurring-time');
+            
+            fetch(`fetch_recurring_slots.php?sub_activity_id=${subActivityId}`)
+                .then(response => response.json())
+                .then(data => {
+                    timeSelect.innerHTML = '<option value="">Select a time</option>';
+                    data.forEach(slot => {
+                        const startTime = formatTime(slot.slot_start_time);
+                        const endTime = formatTime(slot.slot_end_time);
+                        const option = document.createElement('option');
+                        option.value = `${slot.slot_start_time}|${slot.slot_end_time}`;
+                        option.textContent = `${startTime} - ${endTime}`;
+                        timeSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching recurring time slots:', error);
+                    timeSelect.innerHTML = '<option value="">Error loading time slots</option>';
+                });
+        }
+
+        function updateRecurringSummary() {
+            if (selectedDays.size === 0) return;
+
+            const startDate = new Date(document.getElementById('recurring-start-date').value);
+            const weeks = parseInt(document.getElementById('recurring-weeks').value);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (weeks * 7) - 1);
+
+            const totalSessions = selectedDays.size * weeks;
+            const pricePerSession = parseFloat(document.getElementById('modalPrice').textContent);
+            const totalPrice = totalSessions * pricePerSession;
+
+            let summaryDiv = document.querySelector('.recurring-summary');
+            if (!summaryDiv) {
+                summaryDiv = document.createElement('div');
+                summaryDiv.className = 'recurring-summary';
+                document.getElementById('recurring-booking-options').appendChild(summaryDiv);
+            }
+
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const selectedDayNames = Array.from(selectedDays).map(day => dayNames[day]).join(', ');
+
+            summaryDiv.innerHTML = `
+                <strong>Booking Summary:</strong>
+                <ul>
+                    <li>Start Date: ${startDate.toLocaleDateString()}</li>
+                    <li>End Date: ${endDate.toLocaleDateString()}</li>
+                    <li>Selected Days: ${selectedDayNames}</li>
+                    <li>Total Sessions: ${totalSessions}</li>
+                    <li>Total Price: ₹${totalPrice.toFixed(2)}</li>
+                </ul>
+            `;
+        }
+
+        function validateRecurringBooking() {
+            const proceedBtn = document.getElementById('proceedBtn');
+            const timeSelect = document.getElementById('recurring-time');
+            proceedBtn.disabled = selectedDays.size === 0 || !timeSelect.value;
+        }
+
+        // Add this code after your existing JavaScript code
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click handlers for booking type buttons
+            const bookingTypeButtons = document.querySelectorAll('.booking-type-btn');
+            const singleBookingOptions = document.getElementById('single-booking-options');
+            const recurringBookingOptions = document.getElementById('recurring-booking-options');
+
+            bookingTypeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons
+                    bookingTypeButtons.forEach(btn => btn.classList.remove('active'));
+                    // Add active class to clicked button
+                    this.classList.add('active');
+
+                    // Show/hide appropriate booking options
+                    if (this.dataset.type === 'single') {
+                        singleBookingOptions.classList.add('active');
+                        recurringBookingOptions.classList.remove('active');
+                    } else {
+                        singleBookingOptions.classList.remove('active');
+                        recurringBookingOptions.classList.add('active');
+                    }
+
+                    // Reset the proceed button
+                    document.getElementById('proceedBtn').disabled = true;
+                });
+            });
+
+            // Enable proceed button when time slot is selected (for single booking)
+            const timeSlotContainer = document.getElementById('timeSlotContainer');
+            if (timeSlotContainer) {
+                timeSlotContainer.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('time-slot-button')) {
+                        document.querySelectorAll('.time-slot-button').forEach(btn => {
+                            btn.classList.remove('selected');
+                        });
+                        e.target.classList.add('selected');
+                        document.getElementById('proceedBtn').disabled = false;
+                    }
+                });
+            }
+
+            // Add click handler for proceed button
+            const proceedBtn = document.getElementById('proceedBtn');
+            if (proceedBtn) {
+                proceedBtn.addEventListener('click', function() {
+                    const bookingType = document.querySelector('.booking-type-btn.active').dataset.type;
+                    if (bookingType === 'single') {
+                        const selectedDate = document.getElementById('datePicker').value;
+                        const selectedTimeSlot = document.querySelector('.time-slot-button.selected');
+                        
+                        if (!selectedDate || !selectedTimeSlot) {
+                            alert('Please select both date and time slot');
+                            return;
+                        }
+                        
+                        proceedToPayment();
+                    } else {
+                        // Handle recurring booking validation
+                        const startDate = document.getElementById('recurring-start-date').value;
+                        const selectedTime = document.getElementById('recurring-time').value;
+                        
+                        if (!startDate || !selectedTime || selectedDays.size === 0) {
+                            alert('Please select start date, time, and at least one day of the week');
+                            return;
+                        }
+                        
+                        proceedToPayment();
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>

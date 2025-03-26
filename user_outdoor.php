@@ -8,28 +8,9 @@ if (!isset($_SESSION['email'])) {
     exit();
 }
 
-// Fetch membership_id from the database
-$user_email = $_SESSION['email']; // Assuming the email is used to identify the user
-$conn = new mysqli('localhost', 'root', '', 'arenax'); // Update with your actual database credentials
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
-// Fetch user's membership ID and name
-$sql = "SELECT membership_id, name FROM users WHERE email = '$user_email'";
-$result = $conn->query($sql);
-$user_name = "Profile"; // Default value
-$membership_id = 0; // Default value
-
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-    $membership_id = $row['membership_id'];
-    $user_name = $row['name'];
-}
-
-// Fetch outdoor activities and their available time slots
+// Fetch upcoming booking details
 $sql = "SELECT sa.sub_activity_id, san.sub_act_name, sa.sub_activity_image, sa.sub_activity_price, 
+        san.membership_type as required_membership,
         GROUP_CONCAT(DISTINCT 
             CASE 
                 WHEN ts.slot_date >= CURDATE() 
@@ -57,28 +38,32 @@ $sql = "SELECT sa.sub_activity_id, san.sub_act_name, sa.sub_activity_image, sa.s
         FROM sub_activity sa
         LEFT JOIN timeslots ts ON sa.sub_activity_id = ts.sub_activity_id 
         LEFT JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
-        WHERE sa.activity_id = 1  -- Assuming 1 is the ID for outdoor activities
+        WHERE sa.activity_id = 1
         AND (ts.current_participants IS NULL OR ts.current_participants < ts.max_participants)
         GROUP BY sa.sub_activity_id";
 
 try {
     $stmt = $conn->prepare($sql);
     $stmt->execute();
-    
-    // Use get_result() to fetch the results
-    $result = $stmt->get_result();
-    $activities = []; // Initialize the activities array
-
-    // Fetch all rows into the activities array
-    while ($row = $result->fetch_assoc()) {
-        $activities[] = $row;
-    }
+    $activities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log("Error in user_outdoor.php: " . $e->getMessage());
     // Handle error appropriately
 }
 
-$conn->close(); // Close the database connection
+// Fetch user's membership type
+$user_email = $_SESSION['email'];
+$sql = "SELECT u.membership_id, u.name, m.membership_type 
+        FROM users u 
+        JOIN memberships m ON u.membership_id = m.membership_id 
+        WHERE u.email = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bindParam(1, $user_email);
+$stmt->execute();
+$userData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$user_name = isset($userData['name']) ? $userData['name'] : "Profile";
+$membership_type = isset($userData['membership_type']) ? strtolower($userData['membership_type']) : "normal";
 ?>
 
 <!DOCTYPE html>
@@ -896,6 +881,167 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(1);
     cursor: pointer;
 }
+
+/* Add styles for upgrade modal */
+.upgrade-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.upgrade-modal-content {
+    background: rgba(76, 132, 196, 0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 40px;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 10px;
+    color: white;
+    text-align: center;
+}
+
+.upgrade-modal h2 {
+    color: #00bcd4;
+    margin-bottom: 20px;
+}
+
+.upgrade-button {
+    background-color: #00bcd4;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Bodoni Moda', serif;
+    margin-top: 20px;
+}
+
+.upgrade-button:hover {
+    background-color: #008ba3;
+    transform: translateY(-2px);
+}
+
+/* Add these styles in your existing <style> section */
+.booking-type-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.booking-type-btn {
+    flex: 1;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Bodoni Moda', serif;
+    border-radius: 5px;
+}
+
+.booking-type-btn.active {
+    background: #00bcd4;
+    border-color: #00bcd4;
+}
+
+.booking-options {
+    display: none;
+}
+
+.booking-options.active {
+    display: block;
+}
+
+.date-range-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.input-group label {
+    color: #00bcd4;
+    font-size: 0.9em;
+}
+
+/* Add these styles in your existing <style> section */
+.days-of-week-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.day-box {
+    width: 50px;
+    height: 50px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 0.9rem;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.day-box:hover {
+    border-color: #00bcd4;
+    background: rgba(0, 188, 212, 0.1);
+}
+
+.day-box.selected {
+    background: #00bcd4;
+    border-color: #00bcd4;
+    color: white;
+}
+
+.recurring-summary {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.recurring-summary ul {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0 0;
+}
+
+.recurring-summary li {
+    margin-bottom: 5px;
+    padding-left: 20px;
+    position: relative;
+}
+
+.recurring-summary li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: #00bcd4;
+}
     </style>
 </head>
 <body>
@@ -996,16 +1142,63 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                             <span class="detail-label">Activity:</span>
                             <span id="modalActivityName"></span>
                         </div>
+                        
+                        <!-- Move booking type buttons here -->
                         <div class="detail-row">
-                            <span class="detail-label">Select Date:</span>
-                            <div id="dateContainer">
-                                <input type="date" id="datePicker" class="time-slot-select">
+                            <span class="detail-label">Booking Type:</span>
+                            <div class="booking-type-container">
+                                <button class="booking-type-btn active" data-type="single">Single Booking</button>
+                                <button class="booking-type-btn" data-type="recurring">Recurring Booking</button>
                             </div>
                         </div>
+
                         <div class="detail-row">
-                            <span class="detail-label">Available Time Slots:</span>
-                            <div id="timeSlotContainer" class="time-slot-buttons">
-                                <!-- Time slot buttons will be inserted here -->
+                            <!-- Single booking options (default) -->
+                            <div id="single-booking-options" class="booking-options active">
+                                <span class="detail-label">Select Date:</span>
+                                <div id="dateContainer">
+                                    <input type="date" id="datePicker" class="time-slot-select">
+                                </div>
+                                <span class="detail-label">Available Time Slots:</span>
+                                <div id="timeSlotContainer" class="time-slot-buttons">
+                                    <!-- Time slot buttons will be inserted here -->
+                                </div>
+                            </div>
+
+                            <!-- Recurring booking options -->
+                            <div id="recurring-booking-options" class="booking-options">
+                                <div class="date-range-container">
+                                    <div class="input-group">
+                                        <label class="detail-label">Start Date:</label>
+                                        <input type="date" id="recurring-start-date" class="time-slot-select">
+                                    </div>
+                                    <div class="input-group">
+                                        <label class="detail-label">Number of Weeks:</label>
+                                        <select id="recurring-weeks" class="time-slot-select">
+                                            <?php for($i=1; $i<=8; $i++): ?>
+                                                <option value="<?php echo $i; ?>"><?php echo $i; ?> week<?php echo $i>1?'s':''; ?></option>
+                                            <?php endfor; ?>
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <label class="detail-label">Select Days:</label>
+                                        <div class="days-of-week-container">
+                                            <div class="day-box" data-day="1">Mon</div>
+                                            <div class="day-box" data-day="2">Tue</div>
+                                            <div class="day-box" data-day="3">Wed</div>
+                                            <div class="day-box" data-day="4">Thu</div>
+                                            <div class="day-box" data-day="5">Fri</div>
+                                            <div class="day-box" data-day="6">Sat</div>
+                                            <div class="day-box" data-day="0">Sun</div>
+                                        </div>
+                                    </div>
+                                    <div class="input-group">
+                                        <label class="detail-label">Preferred Time:</label>
+                                        <select id="recurring-time" class="time-slot-select">
+                                            <!-- Time slots will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="detail-row">
@@ -1013,8 +1206,34 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                             <span class="price">₹<span id="modalPrice"></span></span>
                         </div>
                     </div>
-                    <button class="proceed-payment" onclick="proceedToPayment()" id="proceedBtn" disabled>Proceed to Payment</button>
+                    <div class="detail-row">
+                        <button class="proceed-payment" onclick="proceedToPayment()" id="proceedBtn" disabled>
+                            <?php 
+                            if ($membership_type === 'premium') {
+                                echo 'Proceed to Booking';
+                            } else {
+                                echo 'Proceed to Payment';
+                            }
+                            ?>
+                        </button>
+                    </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add the upgrade modal HTML before the closing body tag -->
+    <div id="upgradeModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeUpgradeModal()">&times;</span>
+            <div class="modal-body">
+                <h2 style="text-align: center; margin-bottom: 20px; color: #00bcd4;">MEMBERSHIP REQUIRED</h2>
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <i class="fas fa-lock" style="font-size: 60px; color: #00bcd4; margin-bottom: 20px;"></i>
+                    <p style="font-size: 1.2rem; margin-bottom: 20px;">This activity requires a higher membership level.</p>
+                    <p id="upgradeMessage" style="font-size: 1.1rem; margin-bottom: 30px;"></p>
+                </div>
+                <button class="proceed-payment" onclick="window.location.href='membership.php'">Upgrade Membership</button>
             </div>
         </div>
     </div>
@@ -1117,168 +1336,468 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     <!-- Update the JavaScript -->
     <script>
         let selectedTimeSlot = null;
+        let selectedDays = new Set();
 
-function formatTime(timeStr) {
-    // Handle empty or undefined time
-    if (!timeStr) return '';
-    
-    try {
-        const [hours, minutes] = timeStr.split(':');
-        const hour = parseInt(hours);
-        if (isNaN(hour)) return '';
-        
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const hour12 = hour % 12 || 12;
-        return `${hour12}:${minutes} ${ampm}`;
-    } catch (e) {
-        console.error('Error formatting time:', e);
-        return '';
-    }
-}
-
-function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    const options = { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-    };
-    return date.toLocaleDateString('en-US', options);
-}
-
-function openBookingModal(activity) {
-    const modal = document.getElementById('bookingModal');
-    const modalImage = document.getElementById('modalImage');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalActivityName = document.getElementById('modalActivityName');
-    const modalPrice = document.getElementById('modalPrice');
-    const datePicker = document.getElementById('datePicker');
-    const timeSlotContainer = document.getElementById('timeSlotContainer');
-    const proceedBtn = document.getElementById('proceedBtn');
-
-    // Set the modal content
-    modalImage.src = activity.sub_activity_image;
-    modalTitle.textContent = activity.sub_act_name;
-    modalActivityName.textContent = activity.sub_act_name;
-    modalPrice.textContent = activity.sub_activity_price;
-
-    // Clear existing selections
-    timeSlotContainer.innerHTML = '';
-    selectedTimeSlot = null;
-    proceedBtn.disabled = true;
-
-    // Set minimum date to today
-    const today = new Date().toISOString().split('T')[0];
-    datePicker.min = today;
-    datePicker.value = today;
-
-    // Remove existing event listener and add new one
-    datePicker.removeEventListener('change', handleDateChange);
-    datePicker.addEventListener('change', handleDateChange);
-
-    // Show the modal
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-
-    // Store the sub_activity_id for use in handleDateChange
-    datePicker.dataset.subActivityId = activity.sub_activity_id;
-
-    // Trigger initial time slots fetch
-    fetchTimeSlots(activity.sub_activity_id, today);
-}
-
-// Separate function to handle date changes
-function handleDateChange(event) {
-    const selectedDate = event.target.value;
-    const subActivityId = event.target.dataset.subActivityId;
-    if (selectedDate && subActivityId) {
-        fetchTimeSlots(subActivityId, selectedDate);
-    }
-}
-
-// Fetch time slots from the database based on selected date and sub-activity
-function fetchTimeSlots(subActivityId, selectedDate) {
-    const timeSlotContainer = document.getElementById('timeSlotContainer');
-    const proceedBtn = document.getElementById('proceedBtn');
-
-    timeSlotContainer.innerHTML = ''; // Clear previous time slots
-    proceedBtn.disabled = true; // Disable proceed button
-
-    fetch(`fetch_time_slots.php?sub_activity_id=${subActivityId}&date=${selectedDate}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.length > 0) {
-                data.forEach(slot => {
-                    const button = document.createElement('button');
-                    button.className = 'time-slot-button';
-                    const formattedStart = formatTime(slot.slot_start_time);
-                    const formattedEnd = formatTime(slot.slot_end_time);
-                    button.textContent = `${formattedStart} - ${formattedEnd}`;
-                    button.onclick = function() {
-                        document.querySelectorAll('.time-slot-button').forEach(btn => {
-                            btn.classList.remove('selected');
-                        });
-                        this.classList.add('selected');
-                        selectedTimeSlot = `${formattedStart} - ${formattedEnd}`;
-                        proceedBtn.disabled = false;
-                    };
-                    timeSlotContainer.appendChild(button);
-                });
-            } else {
-                timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">No time slots available for this date.</p>';
+        function formatTime(timeStr) {
+            // Handle empty or undefined time
+            if (!timeStr) return '';
+            
+            try {
+                const [hours, minutes] = timeStr.split(':');
+                const hour = parseInt(hours);
+                if (isNaN(hour)) return '';
+                
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const hour12 = hour % 12 || 12;
+                return `${hour12}:${minutes} ${ampm}`;
+            } catch (e) {
+                console.error('Error formatting time:', e);
+                return '';
             }
-        })
-        .catch(error => {
-            console.error('Error fetching time slots:', error);
-            timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">Error loading time slots.</p>';
-        });
-}
-
-function proceedToPayment() {
-    const selectedDate = document.getElementById('datePicker').value;
-    const activityName = document.getElementById('modalActivityName').textContent;
-    const price = document.getElementById('modalPrice').textContent;
-    
-    if (selectedDate && selectedTimeSlot) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'payment.php';
-
-        const fields = {
-            'activity': activityName,
-            'date': selectedDate,
-            'timeslot': selectedTimeSlot,
-            'price': price
-        };
-
-        for (const [key, value] of Object.entries(fields)) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = value;
-            form.appendChild(input);
         }
 
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            };
+            return date.toLocaleDateString('en-US', options);
+        }
 
-// Close modal when clicking the close button
-document.querySelector('.close-modal').addEventListener('click', function() {
-    document.getElementById('bookingModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
-});
+        function openBookingModal(activity) {
+            // Check if user has required membership level
+            const membershipRequired = activity.required_membership.toLowerCase();
+            const membershipLevels = ['normal', 'standard', 'premium'];
+            const userLevel = membershipLevels.indexOf(userMembership);
+            const requiredLevel = membershipLevels.indexOf(membershipRequired);
+            
+            if (userLevel < requiredLevel) {
+                // User doesn't have required membership - show upgrade modal
+                const upgradeModal = document.getElementById('upgradeModal');
+                const upgradeMessage = document.getElementById('upgradeMessage');
+                upgradeMessage.textContent = `Your current membership: ${userMembership.toUpperCase()}. This activity requires ${membershipRequired.toUpperCase()} membership.`;
+                upgradeModal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                return;
+            }
+            
+            // User has required membership - proceed with original booking modal
+            const modal = document.getElementById('bookingModal');
+            const modalImage = document.getElementById('modalImage');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalActivityName = document.getElementById('modalActivityName');
+            const modalPrice = document.getElementById('modalPrice');
+            const datePicker = document.getElementById('datePicker');
+            const timeSlotContainer = document.getElementById('timeSlotContainer');
+            const proceedBtn = document.getElementById('proceedBtn');
 
-// Close modal when clicking outside the modal content
-window.addEventListener('click', function(event) {
-    const modal = document.getElementById('bookingModal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
-        document.body.style.overflow = 'auto';
-    }
-});
+            // Set the modal content
+            modalImage.src = activity.sub_activity_image;
+            modalTitle.textContent = activity.sub_act_name;
+            modalActivityName.textContent = activity.sub_act_name;
+            modalPrice.textContent = activity.sub_activity_price;
+
+            // Clear existing selections
+            timeSlotContainer.innerHTML = '';
+            selectedTimeSlot = null;
+            proceedBtn.disabled = true;
+
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            datePicker.min = today;
+            datePicker.value = today;
+
+            // Remove existing event listener and add new one
+            datePicker.removeEventListener('change', handleDateChange);
+            datePicker.addEventListener('change', handleDateChange);
+
+            // Show the modal
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+
+            // Store the sub_activity_id for use in handleDateChange
+            datePicker.dataset.subActivityId = activity.sub_activity_id;
+
+            // Trigger initial time slots fetch
+            fetchTimeSlots(activity.sub_activity_id, today);
+
+            // Initialize recurring booking functionality
+            initializeRecurringBooking();
+            
+            // Fetch available time slots for recurring bookings
+            fetchRecurringTimeSlots(activity.sub_activity_id);
+        }
+
+        // Separate function to handle date changes
+        function handleDateChange(event) {
+            const selectedDate = event.target.value;
+            const subActivityId = event.target.dataset.subActivityId;
+            if (selectedDate && subActivityId) {
+                fetchTimeSlots(subActivityId, selectedDate);
+            }
+        }
+
+        // Fetch time slots from the database based on selected date and sub-activity
+        function fetchTimeSlots(subActivityId, selectedDate) {
+            const timeSlotContainer = document.getElementById('timeSlotContainer');
+            const proceedBtn = document.getElementById('proceedBtn');
+
+            timeSlotContainer.innerHTML = ''; // Clear previous time slots
+            proceedBtn.disabled = true; // Disable proceed button
+
+            fetch(`fetch_time_slots.php?sub_activity_id=${subActivityId}&date=${selectedDate}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        data.forEach(slot => {
+                            const button = document.createElement('button');
+                            button.className = 'time-slot-button';
+                            const formattedStart = formatTime(slot.slot_start_time);
+                            const formattedEnd = formatTime(slot.slot_end_time);
+                            button.textContent = `${formattedStart} - ${formattedEnd}`;
+                            button.onclick = function() {
+                                document.querySelectorAll('.time-slot-button').forEach(btn => {
+                                    btn.classList.remove('selected');
+                                });
+                                this.classList.add('selected');
+                                selectedTimeSlot = `${formattedStart} - ${formattedEnd}`;
+                                proceedBtn.disabled = false;
+                            };
+                            timeSlotContainer.appendChild(button);
+                        });
+                    } else {
+                        timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">No time slots available for this date.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching time slots:', error);
+                    timeSlotContainer.innerHTML = '<p style="color: white; text-align: center;">Error loading time slots.</p>';
+                });
+        }
+
+        function proceedToPayment() {
+            const bookingType = document.querySelector('.booking-type-btn.active').dataset.type;
+            const activityId = document.getElementById('datePicker').dataset.subActivityId;
+            const activityName = document.getElementById('modalActivityName').textContent;
+            const price = document.getElementById('modalPrice').textContent;
+
+            if (bookingType === 'single') {
+                // Single booking logic
+                const selectedDate = document.getElementById('datePicker').value;
+                const timeSlotButton = document.querySelector('.time-slot-button.selected');
+                
+                if (!selectedDate || !timeSlotButton) {
+                    alert('Please select both date and time slot');
+                    return;
+                }
+
+                // Get the time slot text and split it into start and end times
+                const timeSlotText = timeSlotButton.textContent;
+                const [startTime, endTime] = timeSlotText.split(' - ');
+
+                if (userMembership === 'standard' || userMembership === 'premium') {
+                    // Direct booking for standard and premium members
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'process_direct_booking.php';
+
+                    const formData = {
+                        'activity_id': activityId,
+                        'activity_name': activityName,
+                        'booking_date': selectedDate,
+                        'start_time': startTime,
+                        'end_time': endTime
+                    };
+
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    // Payment process for normal members
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'payment.php';
+
+                    const formData = {
+                        'activity': activityName,
+                        'activity_id': activityId,
+                        'date': selectedDate,
+                        'timeslot': timeSlotButton.textContent,
+                        'price': price,
+                        'booking_type': 'single'
+                    };
+
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            } else {
+                // Recurring booking logic
+                const startDate = document.getElementById('recurring-start-date').value;
+                const weeks = document.getElementById('recurring-weeks').value;
+                const selectedTime = document.getElementById('recurring-time').value;
+                
+                if (!startDate || !selectedTime || selectedDays.size === 0) {
+                    alert('Please select start date, time, and at least one day of the week');
+                    return;
+                }
+
+                // Get the selected time slot values
+                const [startTime, endTime] = selectedTime.split('|');
+                
+                // Calculate end date
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + (weeks * 7) - 1);
+
+                // Convert selected days to array and ensure they're numbers
+                const selectedDaysArray = Array.from(selectedDays).map(Number).sort((a, b) => a - b);
+
+                if (userMembership === 'premium') {
+                    // Direct booking for premium users
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'process_recurring_booking.php';
+
+                    const formData = {
+                        'activity_id': activityId,
+                        'activity_name': activityName,
+                        'booking_date': startDate,
+                        'end_date': endDate.toISOString().split('T')[0],
+                        'start_time': startTime,
+                        'end_time': endTime,
+                        'selected_days': JSON.stringify(selectedDaysArray)
+                    };
+
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    // Existing payment process code for non-premium users...
+                }
+            }
+        }
+
+        // Close modal when clicking the close button
+        document.querySelector('.close-modal').addEventListener('click', function() {
+            document.getElementById('bookingModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        });
+
+        // Close modal when clicking outside the modal content
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('bookingModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        // Add current membership as a JavaScript variable for access in your script
+        const userMembership = "<?php echo $membership_type; ?>";
+
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close upgrade modal when clicking outside the modal content
+        window.addEventListener('click', function(event) {
+            const upgradeModal = document.getElementById('upgradeModal');
+            if (event.target === upgradeModal) {
+                upgradeModal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        // Add event listeners to booking type buttons
+        document.querySelectorAll('.booking-type-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.booking-type-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Hide all booking options
+                document.querySelectorAll('.booking-options').forEach(option => {
+                    option.classList.remove('active');
+                });
+                
+                // Show selected booking option
+                const bookingType = this.dataset.type;
+                const proceedBtn = document.getElementById('proceedBtn');
+
+                // Update button text based on booking type and membership
+                if (bookingType === 'recurring') {
+                    if (userMembership === 'premium') {
+                        proceedBtn.textContent = 'Proceed to Booking';
+                    } else {
+                        proceedBtn.textContent = 'Proceed to Payment';
+                    }
+                } else {
+                    if (userMembership === 'standard' || userMembership === 'premium') {
+                        proceedBtn.textContent = 'Proceed to Booking';
+                    } else {
+                        proceedBtn.textContent = 'Proceed to Payment';
+                    }
+                }
+
+                // Check if the user is trying to select recurring booking with normal membership
+                if (bookingType === 'recurring' && userMembership === 'normal') {
+                    // Show upgrade modal
+                    const upgradeModal = document.getElementById('upgradeModal');
+                    const upgradeMessage = document.getElementById('upgradeMessage');
+                    upgradeMessage.textContent = `Your current membership: ${userMembership.toUpperCase()}. This activity requires a higher membership level for recurring bookings.`;
+                    upgradeModal.style.display = 'block';
+                    document.body.style.overflow = 'hidden';
+
+                    // Stay in single booking options
+                    document.getElementById('single-booking-options').classList.add('active');
+                    this.classList.remove('active');
+                    return;
+                }
+
+                // Show selected booking option
+                document.getElementById(`${bookingType}-booking-options`).classList.add('active');
+                
+                // Reset proceed button
+                proceedBtn.disabled = true;
+            });
+        });
+
+        // Initialize recurring booking handlers
+        function initializeRecurringBooking() {
+            const dayBoxes = document.querySelectorAll('.day-box');
+            const startDate = document.getElementById('recurring-start-date');
+            const weeksSelect = document.getElementById('recurring-weeks');
+            const timeSelect = document.getElementById('recurring-time');
+            
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            startDate.min = today;
+            startDate.value = today;
+
+            // Handle day selection
+            dayBoxes.forEach(box => {
+                box.addEventListener('click', function() {
+                    const day = this.dataset.day;
+                    if (this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        selectedDays.delete(day);
+                    } else {
+                        this.classList.add('selected');
+                        selectedDays.add(day);
+                    }
+                    updateRecurringSummary();
+                    validateRecurringBooking();
+                });
+            });
+
+            // Handle date and weeks changes
+            startDate.addEventListener('change', updateRecurringSummary);
+            weeksSelect.addEventListener('change', updateRecurringSummary);
+            timeSelect.addEventListener('change', validateRecurringBooking);
+        }
+
+        function updateRecurringSummary() {
+            if (selectedDays.size === 0) return;
+
+            const startDate = new Date(document.getElementById('recurring-start-date').value);
+            const weeks = parseInt(document.getElementById('recurring-weeks').value);
+            const endDate = new Date(startDate);
+            endDate.setDate(endDate.getDate() + (weeks * 7) - 1);
+
+            const totalSessions = selectedDays.size * weeks;
+            const pricePerSession = parseFloat(document.getElementById('modalPrice').textContent);
+            const totalPrice = totalSessions * pricePerSession;
+
+            // Create or update summary div
+            let summaryDiv = document.querySelector('.recurring-summary');
+            if (!summaryDiv) {
+                summaryDiv = document.createElement('div');
+                summaryDiv.className = 'recurring-summary';
+                document.getElementById('recurring-booking-options').appendChild(summaryDiv);
+            }
+
+            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const selectedDayNames = Array.from(selectedDays).map(day => dayNames[day]).join(', ');
+
+            summaryDiv.innerHTML = `
+                <strong>Booking Summary:</strong>
+                <ul>
+                    <li>Start Date: ${startDate.toLocaleDateString()}</li>
+                    <li>End Date: ${endDate.toLocaleDateString()}</li>
+                    <li>Selected Days: ${selectedDayNames}</li>
+                    <li>Total Sessions: ${totalSessions}</li>
+                    <li>Total Price: ₹${totalPrice.toFixed(2)}</li>
+                </ul>
+            `;
+        }
+
+        function validateRecurringBooking() {
+            const proceedBtn = document.getElementById('proceedBtn');
+            const timeSelect = document.getElementById('recurring-time');
+            
+            proceedBtn.disabled = selectedDays.size === 0 || !timeSelect.value;
+        }
+
+        // Add this function to format time in 12-hour format
+        function formatTimeSlot(time24h) {
+            const [hours, minutes] = time24h.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+
+        // Update the fetchRecurringTimeSlots function
+        function fetchRecurringTimeSlots(subActivityId) {
+            const timeSelect = document.getElementById('recurring-time');
+            
+            fetch(`fetch_recurring_slots.php?sub_activity_id=${subActivityId}`)
+                .then(response => response.json())
+                .then(data => {
+                    timeSelect.innerHTML = '<option value="">Select a time</option>';
+                    data.forEach(slot => {
+                        const startTime = formatTimeSlot(slot.slot_start_time);
+                        const endTime = formatTimeSlot(slot.slot_end_time);
+                        const option = document.createElement('option');
+                        option.value = `${slot.slot_start_time}|${slot.slot_end_time}`;
+                        option.textContent = `${startTime} - ${endTime}`;
+                        timeSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching recurring time slots:', error);
+                    timeSelect.innerHTML = '<option value="">Error loading time slots</option>';
+                });
+        }
     </script>
 </body>
 </html>

@@ -216,9 +216,10 @@ $activities = getActivities();
 
 function getSubActivities() {
     global $conn;
-    $sql = "SELECT sa.*, a.activity_type 
+    $sql = "SELECT sa.*, a.activity_type, san.membership_type 
             FROM sub_activity sa 
             JOIN activity a ON sa.activity_id = a.activity_id 
+            JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id 
             ORDER BY sa.sub_activity_id ASC";
     $stmt = $conn->query($sql);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -710,6 +711,7 @@ $subActivities = getSubActivities();
                         <tr>
                             <th>Activity Type</th>
                             <th>Sub-Activity Name</th>
+                            <th>Membership Type</th>
                             <th>Price</th>
                             <th>Image</th>
                             <th>Actions</th>
@@ -729,6 +731,7 @@ $subActivities = getSubActivities();
                                 ?>
                                 
                                 <td><?php echo $subActName; ?></td>
+                                <td><?php echo htmlspecialchars($subActivity['membership_type']); ?></td>
                                 <td>₹<?php echo number_format($subActivity['sub_activity_price']); ?></td>
                                 <td><img src="<?php echo $subActivity['sub_activity_image']; ?>" alt="Sub-Activity Image" style="width: 50px; height: auto;"></td>
                                 <td>

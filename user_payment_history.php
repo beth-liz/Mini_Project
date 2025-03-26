@@ -83,6 +83,28 @@ $stmt->bindValue(1, $user_id, PDO::PARAM_INT);
 $stmt->execute();
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Add this near the top of your file, after session_start()
+$billsDir = __DIR__ . '/bills';
+if (!file_exists($billsDir)) {
+    mkdir($billsDir, 0777, true);
+}
+
+// Add this to allow PDF file downloads
+if (isset($_GET['bill']) && !empty($_GET['bill'])) {
+    $billFile = $billsDir . '/' . basename($_GET['bill']);
+    if (file_exists($billFile) && pathinfo($billFile, PATHINFO_EXTENSION) === 'pdf') {
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . basename($billFile) . '"');
+        readfile($billFile);
+        exit;
+    } else {
+        // File not found error handling
+        $_SESSION['error'] = "The requested bill file was not found.";
+        header('Location: error.php'); // Redirect to an error page
+        exit;
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -362,10 +384,14 @@ $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <p><strong>Registration Date:</strong> <?php echo date('d M Y', strtotime($row['membership_reg_date'])); ?></p>
                     <div style="display: flex; align-items: center;">
                         <p style="margin: 0; margin-right: 10px;"><strong>Bill:</strong></p>
-                        <a class="bill-box" href="<?php echo htmlspecialchars($row['bill']); ?>" target="_blank">
-                            <i class="fas fa-file-download"></i> 
-                            <span>Download Bill</span>
-                        </a>
+                        <?php if (!empty($row['bill'])): ?>
+                            <a class="bill-box" href="bills/<?php echo htmlspecialchars($row['bill']); ?>" target="_blank">
+                                <i class="fas fa-file-download"></i> 
+                                <span>Download Bill</span>
+                            </a>
+                        <?php else: ?>
+                            <span>No Bill Available</span>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
@@ -462,7 +488,7 @@ $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <?php if (!empty($event_row['bill'])): ?>
                     <div style="display: flex; align-items: center;">
                         <p style="margin: 0; margin-right: 10px;"><strong>Bill:</strong></p>
-                        <a class="bill-box" href="<?php echo htmlspecialchars($event_row['bill']); ?>" target="_blank">
+                        <a class="bill-box" href="bills/<?php echo htmlspecialchars($event_row['bill']); ?>" target="_blank">
                             <i class="fas fa-file-download"></i> 
                             <span>Download Bill</span>
                         </a>

@@ -79,6 +79,7 @@ $activeSection = 'sub-activities';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sub_activity_name'])) {
     $sub_activity_name = trim($_POST['sub_activity_name']);
     $activity_id = $_POST['activity_id'];
+    $membership_type = $_POST['membership_type']; // Capture membership_type from the form
     $sub_activity_id = $_POST['sub_activity_id'] ?? null; // Get the sub_activity_id if it exists
     
     $errors = [];
@@ -92,23 +93,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sub_activity_name']))
     if (empty($errors)) {
         if ($sub_activity_id) {
             // Update existing record in sub_activity_name
-            $sql = "UPDATE sub_activity_name SET activity_id = :activity_id, sub_act_name = :sub_activity_name 
+            $sql = "UPDATE sub_activity_name SET activity_id = :activity_id, sub_act_name = :sub_activity_name, 
+                    membership_type = :membership_type 
                     WHERE sub_act_id = :sub_activity_id";
             $stmt = $conn->prepare($sql);
             $stmt->execute([
                 'activity_id' => $activity_id,
                 'sub_activity_name' => $sub_activity_name,
+                'membership_type' => $membership_type, // Include membership_type in the update
                 'sub_activity_id' => $sub_activity_id
             ]);
             $_SESSION['sub_activity_success_message'] = "Sub-activity updated successfully!";
         } else {
             // Insert new record into sub_activity_name
-            $sql = "INSERT INTO sub_activity_name (activity_id, sub_act_name) 
-                    VALUES (:activity_id, :sub_activity_name)";
+            $sql = "INSERT INTO sub_activity_name (activity_id, sub_act_name, membership_type) 
+                    VALUES (:activity_id, :sub_activity_name, :membership_type)";
             $stmt = $conn->prepare($sql);
             $stmt->execute([
                 'activity_id' => $activity_id,
-                'sub_activity_name' => $sub_activity_name
+                'sub_activity_name' => $sub_activity_name,
+                'membership_type' => $membership_type // Include membership_type in the insert
             ]);
             $_SESSION['sub_activity_success_message'] = "Sub-activity added successfully!";
         }
@@ -144,7 +148,7 @@ $activities = getActivities();
 
 function getSubActivities() {
     global $conn;
-    $sql = "SELECT san.sub_act_id, san.sub_act_name, a.activity_type, san.activity_id 
+    $sql = "SELECT san.sub_act_id, san.sub_act_name, a.activity_type, san.activity_id, san.membership_type 
             FROM sub_activity_name san 
             JOIN activity a ON san.activity_id = a.activity_id 
             ORDER BY san.sub_act_id ASC";
@@ -609,6 +613,14 @@ $subActivities = getSubActivities();
                             <input type="text" name="sub_activity_name" placeholder="Enter Sub-Activity Name" required
                                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
                                           background: rgba(255,255,255,0.1); color: white;">
+                            <select name="membership_type" required 
+                                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
+                                           background: rgba(255,255,255,0.1); color: white;">
+                                <option value="">Select Membership Type</option>
+                                <option value="normal">Normal</option>
+                                <option value="standard">Standard</option>
+                                <option value="premium">Premium</option>
+                            </select>
                             <button type="submit" class="btn btn-primary">Save Sub-Activity</button>
                             <button type="button" class="btn btn-secondary" id="cancel-sub-activity-btn">Cancel</button>
                         </div>
@@ -621,6 +633,7 @@ $subActivities = getSubActivities();
                         <tr>
                             <th>Activity Type</th>
                             <th>Sub-Activity Name</th>
+                            <th>Membership Type</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -629,6 +642,7 @@ $subActivities = getSubActivities();
                             <tr>
                                 <td><?php echo htmlspecialchars($subActivity['activity_type']); ?></td>
                                 <td><?php echo htmlspecialchars($subActivity['sub_act_name']); ?></td>
+                                <td><?php echo htmlspecialchars($subActivity['membership_type']); ?></td>
                                 <td>
                                     <div class="action-buttons">
                                         <button class="btn btn-edit" data-subactivityid="<?php echo $subActivity['sub_act_id']; ?>">Edit</button>

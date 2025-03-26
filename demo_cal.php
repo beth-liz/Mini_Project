@@ -1,590 +1,238 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendar</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f9f0ff; /* Soft lavender background */
-            color: #333;
-        }
-        
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background-color: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(186, 139, 250, 0.2);
-            padding: 25px;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #6a32a0; /* Deep purple */
-            margin-bottom: 25px;
-            font-weight: 600;
-        }
-        
-        .calendar-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #f0e6ff; /* Light purple border */
-        }
-        
-        .calendar-nav {
-            display: flex;
-            gap: 12px;
-        }
-        
-        button {
-            background-color: #9370DB; /* Medium purple */
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 500;
-            box-shadow: 0 4px 8px rgba(147, 112, 219, 0.2);
-        }
-        
-        button:hover {
-            background-color: #7F5BD5; /* Darker purple on hover */
-            transform: translateY(-2px);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        #addEventBtn {
-            background-color: #FF85A2; /* Soft pink */
-            box-shadow: 0 4px 8px rgba(255, 133, 162, 0.3);
-        }
-        
-        #addEventBtn:hover {
-            background-color: #FF6B8B; /* Deeper pink on hover */
-        }
-        
-        .month-year {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #6a32a0; /* Deep purple */
-            text-shadow: 1px 1px 2px rgba(106, 50, 160, 0.1);
-        }
-        
-        .calendar {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-        
-        .day-header {
-            text-align: center;
-            font-weight: bold;
-            padding: 12px;
-            background-color: #E6E0FF; /* Very light purple */
-            border-radius: 8px;
-            color: #6a32a0; /* Deep purple */
-        }
-        
-        .day {
-            min-height: 110px;
-            border: 1px solid #f0e6ff; /* Light purple border */
-            padding: 10px;
-            background-color: white;
-            position: relative;
-            cursor: pointer;
-            border-radius: 10px;
-            transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
-        }
-        
-        .day:hover {
-            background-color: #fef4ff; /* Very light pink/purple on hover */
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(106, 50, 160, 0.1);
-        }
-        
-        .day-number {
-            font-weight: bold;
-            margin-bottom: 8px;
-            color: #6a32a0; /* Deep purple */
-            font-size: 1.1rem;
-            text-align: right;
-        }
-        
-        .day.inactive {
-            background-color: #f9f7ff; /* Even lighter purple for inactive days */
-            color: #c8b6e2; /* Medium-light purple */
-            box-shadow: none;
-        }
-        
-        .day.inactive:hover {
-            transform: none;
-            box-shadow: none;
-        }
-        
-        .event {
-            background: linear-gradient(to right, #FF85A2, #FFA7C0); /* Pink gradient */
-            color: white;
-            padding: 6px 10px;
-            border-radius: 20px;
-            margin-bottom: 5px;
-            font-size: 0.85rem;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(255, 133, 162, 0.25);
-            transition: transform 0.2s;
-        }
-        
-        .event:hover {
-            transform: translateX(3px);
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(106, 50, 160, 0.4); /* Purple tinted overlay */
-            backdrop-filter: blur(3px);
-        }
-        
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 25px;
-            border: 1px solid #e6d8ff;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(106, 50, 160, 0.2);
-            animation: modalFadeIn 0.3s;
-        }
-        
-        @keyframes modalFadeIn {
-            from {opacity: 0; transform: translateY(-20px);}
-            to {opacity: 1; transform: translateY(0);}
-        }
-        
-        .close {
-            color: #c8b6e2; /* Medium-light purple */
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
-        
-        .close:hover {
-            color: #6a32a0; /* Deep purple */
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        h2 {
-            color: #6a32a0; /* Deep purple */
-            margin-top: 5px;
-            border-bottom: 2px solid #f0e6ff;
-            padding-bottom: 10px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #7F5BD5; /* Darker purple */
-        }
-        
-        input, textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e6d8ff; /* Light purple border */
-            border-radius: 8px;
-            box-sizing: border-box;
-            transition: border-color 0.3s;
-            font-family: inherit;
-        }
-        
-        input:focus, textarea:focus {
-            border-color: #9370DB; /* Medium purple */
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(147, 112, 219, 0.2);
-        }
-        
-        textarea {
-            height: 120px;
-            resize: vertical;
-        }
-        
-        .form-actions {
-            text-align: right;
-            margin-top: 25px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-        
-        #deleteEvent {
-            background-color: #FF6B8B; /* Deeper pink */
-            box-shadow: 0 4px 8px rgba(255, 107, 139, 0.25);
-        }
-        
-        #deleteEvent:hover {
-            background-color: #FF4F75; /* Even deeper pink on hover */
-        }
-        
-        #saveEvent {
-            min-width: 100px;
-        }
-        
-        /* Day highlighting for current day */
-        .day.today {
-            background-color: #fef4ff;
-            border: 2px solid #9370DB;
-        }
-        
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: #f9f0ff;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #c8b6e2;
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #9370DB;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>✨ My Calendar ✨</h1>
-        
-        <div class="calendar-header">
-            <div class="calendar-nav">
-                <button id="prevMonth">← Previous</button>
-                <button id="nextMonth">Next →</button>
-            </div>
-            <div class="month-year" id="monthYear"></div>
-            <button id="addEventBtn">+ Add Event</button>
-        </div>
-        
-        <div class="calendar" id="calendar">
-            <!-- Calendar will be generated with JavaScript -->
-        </div>
-    </div>
+<?php
+session_start();
+require_once 'db_connect.php';
+
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// Log function for debugging
+function logDebug($message) {
+    error_log("[Recurring Booking Debug] " . print_r($message, true));
+}
+
+logDebug("Script started");
+
+// Check if user is logged in
+if (!isset($_SESSION['email'])) {
+    logDebug("User not logged in, redirecting to signin.php");
+    header("Location: signin.php");
+    exit();
+}
+
+// Check if form was submitted
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    logDebug("POST request received");
     
-    <!-- Event Modal -->
-    <div id="eventModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modalTitle">Add Event</h2>
-            <form id="eventForm">
-                <input type="hidden" id="eventId" value="">
-                <input type="hidden" id="eventDate" value="">
-                
-                <div class="form-group">
-                    <label for="eventTitle">Event Title:</label>
-                    <input type="text" id="eventTitle" name="eventTitle" required placeholder="Enter event title...">
-                </div>
-                
-                <div class="form-group">
-                    <label for="eventTime">Time:</label>
-                    <input type="time" id="eventTime" name="eventTime">
-                </div>
-                
-                <div class="form-group">
-                    <label for="eventDescription">Description:</label>
-                    <textarea id="eventDescription" name="eventDescription" placeholder="Add details about your event..."></textarea>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="button" id="deleteEvent">Delete</button>
-                    <button type="submit" id="saveEvent">Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    // Log all POST data
+    logDebug("POST data: " . print_r($_POST, true));
     
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Calendar state
-            let currentDate = new Date();
-            let events = [];
+    // Get user ID
+    $user_email = $_SESSION['email'];
+    logDebug("User email: " . $user_email);
+    
+    $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ?");
+    $stmt->execute([$user_email]);
+    $user_id = $stmt->fetchColumn();
+    
+    if (!$user_id) {
+        logDebug("User not found in database");
+        $_SESSION['error'] = "User not found.";
+        header("Location: user_outdoor.php");
+        exit();
+    }
+    
+    logDebug("User ID: " . $user_id);
+    
+    // Get booking details from POST
+    $activity_id = $_POST['activity_id'];
+    $activity_name = $_POST['activity_name'];
+    $booking_type = $_POST['booking_type'] ?? 'single';
+    
+    logDebug("Activity ID: $activity_id, Name: $activity_name, Booking Type: $booking_type");
+    
+    try {
+        // Begin transaction
+        $conn->beginTransaction();
+        logDebug("Transaction started");
+        
+        if ($booking_type === 'single') {
+            // Handle single booking
+            $booking_date = $_POST['booking_date'];
+            $start_time = $_POST['start_time'];
+            $end_time = $_POST['end_time'];
             
-            // DOM elements
-            const calendar = document.getElementById('calendar');
-            const monthYear = document.getElementById('monthYear');
-            const prevMonthBtn = document.getElementById('prevMonth');
-            const nextMonthBtn = document.getElementById('nextMonth');
-            const addEventBtn = document.getElementById('addEventBtn');
-            const eventModal = document.getElementById('eventModal');
-            const closeModal = document.querySelector('.close');
-            const eventForm = document.getElementById('eventForm');
-            const modalTitle = document.getElementById('modalTitle');
-            const eventIdInput = document.getElementById('eventId');
-            const eventDateInput = document.getElementById('eventDate');
-            const eventTitleInput = document.getElementById('eventTitle');
-            const eventTimeInput = document.getElementById('eventTime');
-            const eventDescriptionInput = document.getElementById('eventDescription');
-            const saveEventBtn = document.getElementById('saveEvent');
-            const deleteEventBtn = document.getElementById('deleteEvent');
+            logDebug("Booking Date: $booking_date, Start Time: $start_time, End Time: $end_time");
             
-            // Initialize calendar
-            renderCalendar();
-            fetchEvents();
+            // Insert into bookings table
+            $stmt = $conn->prepare("INSERT INTO bookings (user_id, sub_activity_id, booking_date, start_time, end_time, booking_status) VALUES (?, ?, ?, ?, ?, 'confirmed')");
+            $stmt->execute([$user_id, $activity_id, $booking_date, $start_time, $end_time]);
             
-            // Event listeners
-            prevMonthBtn.addEventListener('click', () => {
-                currentDate.setMonth(currentDate.getMonth() - 1);
-                renderCalendar();
-            });
+            // Update timeslots table
+            $stmt = $conn->prepare("UPDATE timeslots SET current_participants = current_participants + 1 WHERE sub_activity_id = ? AND slot_date = ? AND slot_start_time = ? AND slot_end_time = ?");
+            $stmt->execute([$activity_id, $booking_date, $start_time, $end_time]);
             
-            nextMonthBtn.addEventListener('click', () => {
-                currentDate.setMonth(currentDate.getMonth() + 1);
-                renderCalendar();
-            });
+        } else {
+            // Handle recurring booking
+            $start_date = $_POST['booking_date'];
+            $end_date = $_POST['end_date'];
+            $start_time = $_POST['start_time'];
+            $end_time = $_POST['end_time'];
+            $booking_time = $_POST['booking_time'];
+            $selected_days = $_POST['selected_days'];
+            $weeks = intval($_POST['weeks']);
+
+            logDebug([
+                'start_date' => $start_date,
+                'end_date' => $end_date,
+                'start_time' => $start_time,
+                'end_time' => $end_time,
+                'booking_time' => $booking_time,
+                'selected_days' => $selected_days,
+                'weeks' => $weeks
+            ]);
+
+            // First, create the recurring booking record
+            $stmt = $conn->prepare("INSERT INTO recurring_bookings (
+                user_id, 
+                sub_activity_id, 
+                start_date, 
+                end_date, 
+                booking_time, 
+                selected_days, 
+                status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'active')");
             
-            addEventBtn.addEventListener('click', () => {
-                openModal();
-            });
+            $stmt->execute([
+                $user_id,
+                $activity_id,
+                $start_date,
+                $end_date,
+                $booking_time,
+                $selected_days
+            ]);
+
+            $recurring_id = $conn->lastInsertId();
+            logDebug("Created recurring_booking with ID: $recurring_id");
+
+            // Generate all booking dates and create individual bookings
+            $selected_days_array = json_decode($selected_days);
+            $start = new DateTime($start_date);
             
-            closeModal.addEventListener('click', () => {
-                eventModal.style.display = 'none';
-            });
-            
-            window.addEventListener('click', (event) => {
-                if (event.target === eventModal) {
-                    eventModal.style.display = 'none';
-                }
-            });
-            
-            eventForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                saveEvent();
-            });
-            
-            deleteEventBtn.addEventListener('click', () => {
-                deleteEvent();
-            });
-            
-            // Functions
-            function renderCalendar() {
-                // Clear calendar
-                calendar.innerHTML = '';
-                
-                // Update month and year display
-                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                monthYear.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-                
-                // Add day headers
-                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                dayNames.forEach(day => {
-                    const dayHeader = document.createElement('div');
-                    dayHeader.className = 'day-header';
-                    dayHeader.textContent = day;
-                    calendar.appendChild(dayHeader);
-                });
-                
-                // Get first day of month and number of days
-                const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-                const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-                const daysInMonth = lastDay.getDate();
-                const startingDayOfWeek = firstDay.getDay();
-                
-                // Add blank cells for days before start of month
-                for (let i = 0; i < startingDayOfWeek; i++) {
-                    const blankDay = document.createElement('div');
-                    blankDay.className = 'day inactive';
-                    calendar.appendChild(blankDay);
-                }
-                
-                // Get today's date for highlighting current day
-                const today = new Date();
-                const isCurrentMonth = today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear();
-                
-                // Add days of the month
-                for (let i = 1; i <= daysInMonth; i++) {
-                    const dayCell = document.createElement('div');
+            for ($week = 0; $week < $weeks; $week++) {
+                foreach ($selected_days_array as $day) {
+                    $current_date = clone $start;
+                    $current_date->modify("+$week week");
                     
-                    // Add "today" class if this is the current day
-                    if (isCurrentMonth && i === today.getDate()) {
-                        dayCell.className = 'day today';
-                    } else {
-                        dayCell.className = 'day';
+                    // Adjust to the correct day of week
+                    $days_to_add = (7 + (intval($day) - $current_date->format('w'))) % 7;
+                    $current_date->modify("+$days_to_add day");
+
+                    // Skip if date is in the past
+                    if ($current_date < new DateTime()) {
+                        logDebug("Skipping past date: " . $current_date->format('Y-m-d'));
+                        continue;
                     }
+
+                    // Check if timeslot exists and has availability
+                    $stmt = $conn->prepare("SELECT slot_id, current_participants, max_participants 
+                        FROM timeslots 
+                        WHERE sub_activity_id = ? 
+                        AND slot_date = ? 
+                        AND slot_start_time = ? 
+                        AND slot_end_time = ?");
                     
-                    const dayNumber = document.createElement('div');
-                    dayNumber.className = 'day-number';
-                    dayNumber.textContent = i;
-                    dayCell.appendChild(dayNumber);
+                    $stmt->execute([
+                        $activity_id,
+                        $current_date->format('Y-m-d'),
+                        $start_time,
+                        $end_time
+                    ]);
                     
-                    // Format date string for comparison with events
-                    const dateStr = formatDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), i));
-                    dayCell.dataset.date = dateStr;
-                    
-                    // Add click event to open modal for this day
-                    dayCell.addEventListener('click', () => {
-                        openModal(null, dateStr);
-                    });
-                    
-                    calendar.appendChild(dayCell);
-                }
-                
-                // Add events to calendar
-                displayEvents();
-            }
-            
-            function displayEvents() {
-                // Clear existing events from calendar
-                document.querySelectorAll('.event').forEach(el => el.remove());
-                
-                // Add events to corresponding days
-                events.forEach(event => {
-                    const dayCell = document.querySelector(`.day[data-date="${event.date}"]`);
-                    if (dayCell) {
-                        const eventEl = document.createElement('div');
-                        eventEl.className = 'event';
-                        eventEl.textContent = `${event.time ? event.time + ': ' : ''}${event.title}`;
-                        eventEl.title = event.description || event.title;
+                    $timeslot = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if ($timeslot && $timeslot['current_participants'] < $timeslot['max_participants']) {
+                        $timeslot_id = $timeslot['slot_id'];
+                        logDebug("Processing timeslot ID: $timeslot_id for date: " . $current_date->format('Y-m-d'));
+
+                        // Insert into bookings table
+                        $stmt = $conn->prepare("INSERT INTO bookings (
+                            user_id, 
+                            sub_activity_id, 
+                            booking_date, 
+                            start_time, 
+                            end_time, 
+                            booking_status, 
+                            is_recurring, 
+                            recurring_group_id
+                        ) VALUES (?, ?, ?, ?, ?, 'confirmed', 1, ?)");
                         
-                        // Add click event to open modal with this event
-                        eventEl.addEventListener('click', (e) => {
-                            e.stopPropagation(); // Prevent triggering the day cell click
-                            openModal(event);
-                        });
+                        $stmt->execute([
+                            $user_id,
+                            $activity_id,
+                            $current_date->format('Y-m-d'),
+                            $start_time,
+                            $end_time,
+                            $recurring_id
+                        ]);
+
+                        $booking_id = $conn->lastInsertId();
+                        logDebug("Created booking with ID: $booking_id");
+
+                        // Insert into recurring_slots
+                        $stmt = $conn->prepare("INSERT INTO recurring_slots (
+                            recurring_id, 
+                            booking_date, 
+                            timeslot_id, 
+                            status, 
+                            booking_id
+                        ) VALUES (?, ?, ?, 'booked', ?)");
                         
-                        dayCell.appendChild(eventEl);
+                        $stmt->execute([
+                            $recurring_id,
+                            $current_date->format('Y-m-d'),
+                            $timeslot_id,
+                            $booking_id
+                        ]);
+
+                        // Update timeslots table
+                        $stmt = $conn->prepare("UPDATE timeslots 
+                            SET current_participants = current_participants + 1 
+                            WHERE slot_id = ?");
+                        $stmt->execute([$timeslot_id]);
+
+                        logDebug("Successfully processed booking for date: " . $current_date->format('Y-m-d'));
+            } else {
+                        logDebug("No available timeslot for date: " . $current_date->format('Y-m-d'));
                     }
-                });
-            }
-            
-            function openModal(event = null, dateStr = null) {
-                if (event) {
-                    // Edit existing event
-                    modalTitle.textContent = 'Edit Event';
-                    eventIdInput.value = event.id;
-                    eventDateInput.value = event.date;
-                    eventTitleInput.value = event.title;
-                    eventTimeInput.value = event.time || '';
-                    eventDescriptionInput.value = event.description || '';
-                    deleteEventBtn.style.display = 'inline-block';
-                } else {
-                    // Add new event
-                    modalTitle.textContent = 'Add Event';
-                    eventForm.reset();
-                    eventIdInput.value = '';
-                    eventDateInput.value = dateStr || formatDate(new Date());
-                    deleteEventBtn.style.display = 'none';
-                }
-                
-                eventModal.style.display = 'block';
-            }
-            
-            function saveEvent() {
-                const eventData = {
-                    id: eventIdInput.value || Date.now().toString(),
-                    date: eventDateInput.value,
-                    title: eventTitleInput.value,
-                    time: eventTimeInput.value,
-                    description: eventDescriptionInput.value
-                };
-                
-                // Use AJAX to save event to PHP backend
-                fetch('save_event.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(eventData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // If successful, update local events and close modal
-                        fetchEvents();
-                        eventModal.style.display = 'none';
-                    } else {
-                        alert('Error saving event: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error saving event. Please try again.');
-                });
-            }
-            
-            function deleteEvent() {
-                const eventId = eventIdInput.value;
-                
-                if (confirm('Are you sure you want to delete this event?')) {
-                    fetch('delete_event.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ id: eventId })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // If successful, update local events and close modal
-                            fetchEvents();
-                            eventModal.style.display = 'none';
-                        } else {
-                            alert('Error deleting event: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Error deleting event. Please try again.');
-                    });
                 }
             }
-            
-            function fetchEvents() {
-                // Fetch events from PHP backend
-                fetch('get_events.php')
-                .then(response => response.json())
-                .then(data => {
-                    events = data;
-                    displayEvents();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-            }
-            
-            function formatDate(date) {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            }
-        });
-    </script>
-</body>
-</html>
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        logDebug("Transaction committed successfully");
+        
+        // Set success message and redirect
+        $_SESSION['success'] = "Recurring booking confirmed successfully!";
+        logDebug("Redirecting to user_bookings.php");
+        header("Location: user_bookings.php");
+        exit();
+        
+    } catch (Exception $e) {
+        // Rollback transaction on error
+        $conn->rollBack();
+        logDebug("Error: " . $e->getMessage());
+        error_log("Error in process_direct_booking.php: " . $e->getMessage());
+        $_SESSION['error'] = "Error processing booking. Please try again.";
+        header("Location: user_outdoor.php");
+        exit();
+    }
+} else {
+    // If not POST request, redirect back
+    logDebug("Not a POST request, redirecting back");
+    $_SESSION['error'] = "Invalid request method.";
+    header("Location: user_outdoor.php");
+    exit();
+}
+?> 

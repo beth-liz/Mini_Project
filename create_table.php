@@ -65,6 +65,7 @@ $sql = "CREATE TABLE sub_activity_name (
     sub_act_id INT AUTO_INCREMENT PRIMARY KEY,
     sub_act_name VARCHAR(100) NOT NULL,
     activity_id INT NOT NULL,
+    membership_type ENUM('normal', 'standard', 'premium') NOT NULL,
     FOREIGN KEY (activity_id) REFERENCES activity(activity_id)
 )";
 
@@ -174,27 +175,19 @@ if ($conn->query($sql) === TRUE) {
 $sql = "CREATE TABLE membership_reg (
     membership_reg_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
+    membership_id INT NOT NULL,
     membership_reg_date DATE NOT NULL,
     membership_reg_time TIME NOT NULL,
+    expiration_date DATE NULL,
     bill VARCHAR(255) NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (membership_id) REFERENCES memberships(membership_id)
 )";
 
 if ($conn->query($sql) === TRUE) {
     echo "Table membership_reg created successfully";
 } else {
     echo "Error creating table: " . $conn->error;
-}
-
-// SQL to add membership_id column to membership_reg table
-$sql = "ALTER TABLE membership_reg
-ADD COLUMN membership_id INT NOT NULL AFTER user_id,
-ADD FOREIGN KEY (membership_id) REFERENCES memberships(membership_id)";
-
-if ($conn->query($sql) === TRUE) {
-    echo "Column membership_id added to membership_reg table successfully";
-} else {
-    echo "Error adding column: " . $conn->error;
 }
 
 // SQL to create payment table
@@ -223,12 +216,20 @@ if ($conn->query($sql) === TRUE) {
 $sql = "CREATE TABLE feedback (
     feedback_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
+    activity_id INT NOT NULL,
+    activity_type VARCHAR(50) NOT NULL,
+    sub_act_id INT NOT NULL,
+    activity_name VARCHAR(100) NOT NULL,
     feedback_content TEXT NOT NULL,
     rating TINYINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
     feedback_date DATE NOT NULL,
     feedback_time TIME NOT NULL,
     status ENUM('Pending', 'Reviewed') DEFAULT 'Pending',
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    event_id INT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (activity_id) REFERENCES activity(activity_id),
+    FOREIGN KEY (sub_act_id) REFERENCES sub_activity_name(sub_act_id),
+    CONSTRAINT fk_feedback_event FOREIGN KEY (event_id) REFERENCES events(event_id)
 )";
 
 if ($conn->query($sql) === TRUE) {
@@ -257,8 +258,70 @@ if ($conn->query($sql) === TRUE) {
     echo "Error creating table: " . $conn->error;
 }
 
+// SQL to create recurring_bookings table
+$sql = "CREATE TABLE recurring_bookings (
+    recurring_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    sub_activity_id INT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    booking_time TIME NOT NULL,
+    selected_days VARCHAR(50) NOT NULL, -- Store days as comma-separated string (e.g., '1,3,5' for Mon,Wed,Fri)
+    status ENUM('active', 'completed', 'cancelled') DEFAULT 'active',
+    bill VARCHAR(255), -- Added column for storing bill path
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (sub_activity_id) REFERENCES sub_activity(sub_activity_id),
+    CHECK (DATEDIFF(end_date, start_date) <= 56) -- Maximum 8 weeks
+)";
 
+if ($conn->query($sql) === TRUE) {
+    echo "Table recurring_bookings created successfully<br>";
+} else {
+    echo "Error creating table: " . $conn->error . "<br>";
+}
+
+// SQL to create recurring_slots table
+$sql = "CREATE TABLE recurring_slots (
+    slot_id INT AUTO_INCREMENT PRIMARY KEY,
+    recurring_id INT NOT NULL,
+    booking_date DATE NOT NULL,
+    timeslot_id INT NOT NULL,
+    status ENUM('pending', 'booked', 'cancelled') DEFAULT 'pending',
+    booking_id INT NULL,
+    FOREIGN KEY (recurring_id) REFERENCES recurring_bookings(recurring_id),
+    FOREIGN KEY (timeslot_id) REFERENCES timeslots(slot_id),
+    FOREIGN KEY (booking_id) REFERENCES booking(booking_id)
+)";
+
+if ($conn->query($sql) === TRUE) {
+    echo "Table recurring_slots created successfully<br>";
+} else {
+    echo "Error creating table: " . $conn->error . "<br>";
+}
+
+// Add events to the activities array
+$eventsQuery = "SELECT a.activity_type, e.event_title 
+               FROM events e
+               JOIN activity a ON e.activity_id = a.activity_id
+               ORDER BY e.event_title";
+$eventsResult = $conn->query($eventsQuery);
+
+while ($row = $eventsResult->fetch_assoc()) {
+    $activities[$row['activity_type']][] = $row['event_title'];
+}
 
 // Close connection
 $conn->close();
+
+require_once 'db_connect.php';
+
+try {
+    // Modify the expiration_date column to allow NULL values
+    $sql = "ALTER TABLE membership_reg MODIFY COLUMN expiration_date DATE NULL";
+    $conn->exec($sql);
+    echo "Modified membership_reg table to allow NULL expiration_date values.";
+} catch (PDOException $e) {
+    echo "Error modifying table: " . $e->getMessage();
+}
 ?> 

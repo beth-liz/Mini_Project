@@ -10,19 +10,29 @@ if (!isset($_SESSION['email'])) {
 
 // Fetch user's membership and name
 $user_email = $_SESSION['email']; // Define $user_email from session
-$sql = "SELECT membership_id, name FROM users WHERE email = :email";
+$sql = "SELECT u.membership_id, u.name, m.membership_type 
+        FROM users u 
+        JOIN memberships m ON u.membership_id = m.membership_id 
+        WHERE u.email = ?";
 $stmt = $conn->prepare($sql);
-$stmt->bindParam(':email', $user_email);
+$stmt->bindParam(1, $user_email);
 $stmt->execute();
-$user_name = "Profile"; // Default value
+$userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if ($stmt->rowCount() > 0) {
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    $membership_id = $row['membership_id'];
-    $user_name = $row['name'];
+$membership_type = isset($userData['membership_type']) ? strtolower($userData['membership_type']) : "normal";
+
+// Fetch user's ID (add this after fetching user data)
+$user_id = null;
+$sql = "SELECT user_id FROM users WHERE email = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bindParam(1, $user_email);
+$stmt->execute();
+$user_result = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($user_result) {
+    $user_id = $user_result['user_id'];
 }
 
-// Fetch events
+// Update the events query to include registration status and price
 $sql = "SELECT 
             e.event_id,
             e.event_title,
@@ -32,14 +42,20 @@ $sql = "SELECT
             e.event_location,
             e.event_price,
             e.event_image,
-            a.activity_type
+            a.activity_type,
+            CASE WHEN er.event_reg_id IS NOT NULL THEN 1 ELSE 0 END as is_registered
         FROM events e
         JOIN activity a ON e.activity_id = a.activity_id
+        LEFT JOIN event_registration er ON e.event_id = er.event_id AND er.user_id = ?
         ORDER BY e.event_date DESC, e.event_time ASC";
 
 $stmt = $conn->prepare($sql);
+$stmt->bindParam(1, $user_id);
 $stmt->execute();
 $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Add this PHP code near the top of the file after fetching user data
+$razorpay_key = "rzp_test_iZLI83hLdG7JqU"; // Replace with your actual Razorpay key ID
 ?>
 
 <!DOCTYPE html>
@@ -1026,7 +1042,7 @@ border-bottom: 8px solid rgba(0, 0, 0, 0.9);
             </ul>
         </nav>
         <div style="margin-right: 20px; position: relative;">
-            <button class="log"><?php echo htmlspecialchars($user_name); ?> <i class="fas fa-caret-down"></i></button>
+            <button class="log"><?php echo htmlspecialchars($userData['name']); ?> <i class="fas fa-caret-down"></i></button>
             <div class="dropdown">
                 <a href="user_profile.php">PROFILE</a>
                 <a href="user_bookings.php">BOOKINGS</a>
@@ -1054,7 +1070,9 @@ border-bottom: 8px solid rgba(0, 0, 0, 0.9);
             <?php foreach ($events as $event): ?>
                 <div class="event-card" data-event-id="<?php echo htmlspecialchars($event['event_id']); ?>">
                     <div class="event-image">
-                        <img src="<?php echo htmlspecialchars($event['event_image']); ?>" alt="<?php echo htmlspecialchars($event['event_title']); ?>" style="width: 100%; height: auto;">
+                        <img src="<?php echo htmlspecialchars($event['event_image']); ?>" 
+                             alt="<?php echo htmlspecialchars($event['event_title']); ?>" 
+                             style="width: 100%; height: auto;">
                     </div>
                     <div class="event-details">
                         <h3><?php echo htmlspecialchars($event['event_title']); ?></h3>
@@ -1066,7 +1084,11 @@ border-bottom: 8px solid rgba(0, 0, 0, 0.9);
                             <p class="event-description" style="display:none;"><?php echo htmlspecialchars($event['event_description']); ?></p>
                         </div>
                         <div class="event-actions">
-                            <button class="book-now-btn">Book Now</button>
+                            <?php if ($event['is_registered']): ?>
+                                <button class="book-now-btn" style="background-color: #666;" disabled>Already Registered</button>
+                            <?php else: ?>
+                                <button class="book-now-btn" data-event-id="<?php echo htmlspecialchars($event['event_id']); ?>">Book Now</button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -1111,12 +1133,33 @@ border-bottom: 8px solid rgba(0, 0, 0, 0.9);
                 </div>
                 <div class="modal-actions">
                     <button id="cancelBooking" class="cancel-btn">Cancel</button>
-                    <button id="proceedToPayment" class="proceed-btn">Proceed to Payment</button>
+                    <button id="proceedToBooking" class="proceed-btn" data-event-id="">
+                        <?php echo ($membership_type === 'premium') ? 'Proceed to Booking' : 'Proceed to Payment'; ?>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+    <!-- Membership Upgrade Modal -->
+    <div id="upgradeModal" class="modal" style="display: none;">
+        <div class="modal-content" style="font-family: 'Bodoni Moda', serif; background: rgba(76, 132, 196, 0.15); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.18); padding: 40px; width: 90%; max-width: 500px; border-radius: 10px; color: white; text-align: center;">
+            <span class="close-upgrade" style="position: absolute; top: 15px; right: 15px; font-size: 24px; cursor: pointer; color: white;">&times;</span>
+            <h2 style="text-align: center; margin-bottom: 20px; color: #00bcd4;">MEMBERSHIP REQUIRED</h2>
+            
+            <!-- Horizontal line -->
+            <hr style="border: 1px solid white; margin: 20px 0;"/>
+            
+
+            <div style="text-align: center; margin-bottom: 30px;">
+                <i class="fas fa-lock" style="font-size: 60px; color: #00bcd4; margin-bottom: 20px;"></i>
+                <p style="font-size: 1.2rem; margin-bottom: 20px;">Event booking requires a higher membership level.</p>
+                <p style="font-size: 1.1rem; margin-bottom: 30px;">Your current membership: <strong><?php echo strtoupper($membership_type); ?></strong>. This feature requires STANDARD or PREMIUM membership.</p>
+            </div>
+            <button style="background-color: #00bcd4; color: white; border: none; padding: 12px 30px; font-size: 1.1rem; border-radius: 5px; cursor: pointer; transition: all 0.3s ease; font-family: 'Bodoni Moda', serif; margin-top: 20px;" onclick="closeUpgradeModal()">Upgrade Membership</button>
+        </div>
+    </div>
 
     <footer>
         <div class="footer-container">
@@ -1155,6 +1198,7 @@ border-bottom: 8px solid rgba(0, 0, 0, 0.9);
         </div>
     </footer>
 
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
         const header = document.querySelector('.header');
         window.addEventListener('scroll', () => {
@@ -1220,83 +1264,200 @@ border-bottom: 8px solid rgba(0, 0, 0, 0.9);
             event.stopPropagation();
         });
 
-        // Event details modal functionality
-document.addEventListener('DOMContentLoaded', function() {
-    const bookNowBtns = document.querySelectorAll('.book-now-btn');
-    const modal = document.getElementById("eventModal");
-    const closeModal = document.querySelector(".close");
-    const cancelBtn = document.getElementById("cancelBooking");
-    const proceedToPayment = document.getElementById("proceedToPayment");
-    
-    // Display the modal when "Book Now" is clicked
-    bookNowBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const card = this.closest('.event-card');
-            const eventId = card.getAttribute('data-event-id');
-            const eventTitle = card.querySelector('h3').textContent;
-            const eventDescription = card.querySelector('.event-description').textContent;
-            const eventDate = card.querySelector('.event-date').textContent;
-            const eventTime = card.querySelector('.event-time').textContent;
-            const eventLocation = card.querySelector('.event-location').textContent;
-            const eventPrice = card.querySelector('.event-price').textContent;
-            const eventImage = card.querySelector('img').src;
-            const eventType = card.querySelector('.event-type') ? card.querySelector('.event-type').textContent : 'Event';
+        // Modify the event modal JavaScript to check membership before proceeding
+        document.addEventListener('DOMContentLoaded', function() {
+            const bookNowBtns = document.querySelectorAll('.book-now-btn');
+            const modal = document.getElementById("eventModal");
+            const closeModal = document.querySelector(".close");
+            const cancelBtn = document.getElementById("cancelBooking");
+            const proceedToBooking = document.getElementById("proceedToBooking");
             
-            // Set modal content
-            document.getElementById("modalEventTitle").textContent = eventTitle;
-            document.getElementById("modalEventDescription").textContent = eventDescription;
-            document.getElementById("modalEventDate").textContent = eventDate.replace('calendar-alt', '');
-            document.getElementById("modalEventTime").textContent = eventTime.replace('clock', '');
-            document.getElementById("modalEventLocation").textContent = eventLocation.replace('map-marker-alt', '');
-            document.getElementById("modalEventPrice").textContent = eventPrice.replace('tag', '');
-            document.getElementById("modalEventImage").src = eventImage;
-            document.getElementById("modalEventType").textContent = eventType;
+            const userMembership = "<?php echo $membership_type; ?>";
             
-            // Store event ID in the modal for later use
-            modal.setAttribute('data-event-id', eventId);
+            bookNowBtns.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    const card = this.closest('.event-card');
+                    const isRegistered = card.getAttribute('data-registered') === '1';
+                    
+                    if (isRegistered) {
+                        alert('You are already registered for this event!');
+                        e.stopPropagation();
+                        return false;
+                    }
+                    
+                    // Check membership only if it's not premium
+                    if (userMembership === 'normal') {
+                        document.getElementById('upgradeModal').style.display = 'block';
+                        document.body.style.overflow = 'hidden';
+                        e.stopPropagation();
+                        return false;
+                    }
+                    
+                    const eventId = card.getAttribute('data-event-id');
+                    const eventTitle = card.querySelector('h3').textContent;
+                    const eventDescription = card.querySelector('.event-description').textContent;
+                    const eventDate = card.querySelector('.event-date').textContent;
+                    const eventTime = card.querySelector('.event-time').textContent;
+                    const eventLocation = card.querySelector('.event-location').textContent;
+                    const eventPrice = card.querySelector('.event-price').textContent;
+                    const eventImage = card.querySelector('img').src;
+                    const eventType = card.querySelector('.event-type') ? card.querySelector('.event-type').textContent : 'Event';
+                    
+                    // Set modal content
+                    document.getElementById("modalEventTitle").textContent = eventTitle;
+                    document.getElementById("modalEventDescription").textContent = eventDescription;
+                    document.getElementById("modalEventDate").textContent = eventDate.replace('calendar-alt', '');
+                    document.getElementById("modalEventTime").textContent = eventTime.replace('clock', '');
+                    document.getElementById("modalEventLocation").textContent = eventLocation.replace('map-marker-alt', '');
+                    document.getElementById("modalEventPrice").textContent = eventPrice.replace('tag', '');
+                    document.getElementById("modalEventImage").src = eventImage;
+                    document.getElementById("modalEventType").textContent = eventType;
+                    
+                    // Update button text and behavior based on membership
+                    if (userMembership === 'premium') {
+                        proceedToBooking.textContent = 'Proceed to Booking';
+                    } else {
+                        proceedToBooking.textContent = 'Proceed to Payment';
+                    }
+                    
+                    // Store event ID in the modal
+                    modal.setAttribute('data-event-id', eventId);
+                    proceedToBooking.setAttribute('data-event-id', eventId);
+                    
+                    // Show the modal
+                    modal.style.display = "block";
+                    document.body.style.overflow = "hidden";
+                });
+            });
             
-            // Show the modal with animation
-            modal.style.display = "block";
-            document.body.style.overflow = "hidden"; // Prevent scrolling
+            proceedToBooking.addEventListener('click', function(e) {
+                e.preventDefault();
+                const eventId = this.getAttribute('data-event-id');
+                const userMembership = "<?php echo $membership_type; ?>";
+                
+                if (userMembership === 'premium') {
+                    // Existing premium direct booking code
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'process_direct_event_booking.php';
+                    
+                    const eventInput = document.createElement('input');
+                    eventInput.type = 'hidden';
+                    eventInput.name = 'event_id';
+                    eventInput.value = eventId;
+                    
+                    form.appendChild(eventInput);
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    // Get event price from the modal
+                    const priceText = document.getElementById("modalEventPrice").textContent;
+                    // Remove currency symbol and convert to number
+                    const price = parseFloat(priceText.match(/\d+/)[0]) * 100; // Convert to paise
+                    
+                    // Log the price for debugging
+                    console.log('Price in paise:', price);
+                    
+                    const options = {
+                        key: "<?php echo $razorpay_key; ?>", // Your Key ID
+                        amount: price,
+                        currency: "INR",
+                        name: "ArenaX",
+                        description: "Event Registration Payment",
+                        image: "img/logo3.png",
+                        handler: function (response) {
+                            console.log('Payment success:', response);
+                            // Create form to submit payment details
+                            const form = document.createElement('form');
+                            form.method = 'POST';
+                            form.action = 'process_event_payment.php';
+                            
+                            const fields = {
+                                'razorpay_payment_id': response.razorpay_payment_id,
+                                'event_id': eventId,
+                                'amount': price / 100 // Convert back to rupees
+                            };
+                            
+                            for (const [key, value] of Object.entries(fields)) {
+                                const input = document.createElement('input');
+                                input.type = 'hidden';
+                                input.name = key;
+                                input.value = value;
+                                form.appendChild(input);
+                            }
+                            
+                            document.body.appendChild(form);
+                            form.submit();
+                        },
+                        prefill: {
+                            name: "<?php echo htmlspecialchars($userData['name']); ?>",
+                            email: "<?php echo htmlspecialchars($_SESSION['email']); ?>"
+                        },
+                        theme: {
+                            color: "#00bcd4"
+                        },
+                        modal: {
+                            ondismiss: function() {
+                                console.log('Payment modal closed');
+                            }
+                        }
+                    };
+                    
+                    try {
+                        const rzp = new Razorpay(options);
+                        rzp.on('payment.failed', function (response){
+                            console.error('Payment failed:', response.error);
+                            alert('Payment failed. Please try again.');
+                        });
+                        rzp.open();
+                    } catch (error) {
+                        console.error('Razorpay initialization error:', error);
+                        alert('Unable to initialize payment. Please try again.');
+                    }
+                }
+            });
+            
+            // Close modal functions
+            function closeModalFunc() {
+                modal.style.display = "none";
+                document.body.style.overflow = "auto"; // Allow scrolling again
+            }
+            
+            closeModal.onclick = closeModalFunc;
+            cancelBtn.onclick = closeModalFunc;
+            
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    closeModalFunc();
+                }
+                
+                // Also handle upgrade modal closing
+                const upgradeModal = document.getElementById('upgradeModal');
+                if (event.target == upgradeModal) {
+                    upgradeModal.style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                }
+            }
+            
+            // Close upgrade modal when clicking the X
+            const closeUpgradeBtn = document.querySelector('.close-upgrade');
+            if (closeUpgradeBtn) {
+                closeUpgradeBtn.addEventListener('click', function() {
+                    document.getElementById('upgradeModal').style.display = 'none';
+                    document.body.style.overflow = 'auto';
+                });
+            }
         });
-    });
-    
-    // Close modal functions
-    function closeModalFunc() {
-        modal.style.display = "none";
-        document.body.style.overflow = "auto"; // Allow scrolling again
-    }
-    
-    closeModal.onclick = closeModalFunc;
-    cancelBtn.onclick = closeModalFunc;
-    
-    // Close modal when clicking outside
-    window.onclick = function(event) {
-        if (event.target == modal) {
-            closeModalFunc();
+
+        // Update the upgrade button in the upgrade modal
+        function closeUpgradeModal() {
+            document.getElementById('upgradeModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+            
+            // Redirect to user_home.php with a query parameter
+            window.location.href = 'user_home.php?showMembershipModal=true';
         }
-    }
-    
-    // Proceed to payment button functionality
-    proceedToPayment.addEventListener('click', function() {
-        const eventId = modal.getAttribute('data-event-id');
-        
-        // Create a form to submit the event_id
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'events_payment.php';
-        form.style.display = 'none'; // Hide the form
-        
-        const hiddenField = document.createElement('input');
-        hiddenField.type = 'hidden';
-        hiddenField.name = 'event_id';
-        hiddenField.value = eventId;
-        
-        form.appendChild(hiddenField);
-        document.body.appendChild(form);
-        form.submit();
-    });
-});
     </script>
 </body>
 </html>
