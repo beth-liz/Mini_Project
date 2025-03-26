@@ -519,6 +519,7 @@
                 <li class="sidebar-nav-item"><a href="manager_time_slots.php">Time Slots</a></li>
                 <li class="sidebar-nav-item"><a href="manager_bookings.php">Bookings</a></li>
                 <li class="sidebar-nav-item"><a href="manager_events.php">Events</a></li>
+                <li class="sidebar-nav-item"><a href="manager_payments.php">Payments</a></li>
                 <li class="sidebar-nav-item"><a href="manager_feedback.php">Feedback</a></li>
             </ul>
             </nav>
@@ -529,10 +530,7 @@
                 <header class="dashboard-header">
                     <h1>User Management</h1>
                     <div class="header-actions">
-                        <div class="notifications">
-                            <span class="notifications-icon">🔔</span>
-                            <span class="notifications-badge">3</span>
-                        </div>
+
                         <div class="dropdown">
                             <div class="user-profile">
                                 <div class="user-avatar">MG</div>

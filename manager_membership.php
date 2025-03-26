@@ -534,6 +534,7 @@ if (isset($success_message) || isset($error_message)) {
                 <li class="sidebar-nav-item"><a href="manager_time_slots.php">Time Slots</a></li>
                 <li class="sidebar-nav-item"><a href="manager_bookings.php">Bookings</a></li>
                 <li class="sidebar-nav-item"><a href="manager_events.php">Events</a></li>
+                <li class="sidebar-nav-item"><a href="manager_payments.php">Payments</a></li>
                 <li class="sidebar-nav-item"><a href="manager_feedback.php">Feedback</a></li>
             </ul>
         </nav>
@@ -545,10 +546,6 @@ if (isset($success_message) || isset($error_message)) {
             <header class="dashboard-header" style="text-align: center;">
                 <h1>Membership Management</h1>
                 <div class="header-actions" style="text-align: center;">
-                    <div class="notifications" style="display: inline-block;">
-                        <span class="notifications-icon">🔔</span>
-                        <span class="notifications-badge">3</span>
-                    </div>
                     <div class="dropdown" style="display: inline-block;">
                         <div class="user-profile">
                             <div class="user-avatar">MG</div>

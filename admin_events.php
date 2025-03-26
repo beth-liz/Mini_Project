@@ -8,7 +8,7 @@ header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT"); // Past date
 
 // Add session validation
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     // Clear any existing session data
     session_unset();
     session_destroy();
@@ -920,7 +920,6 @@ if (isset($_SESSION['success_message'])) {
                 <li class="sidebar-nav-item"><a href="manager_time_slots.php">Time Slots</a></li>
                 <li class="sidebar-nav-item"><a href="manager_bookings.php">Bookings</a></li>
                 <li class="sidebar-nav-item active"><a href="manager_events.php">Events</a></li>
-                <li class="sidebar-nav-item"><a href="manager_payments.php">Payments</a></li>
                 <li class="sidebar-nav-item"><a href="manager_feedback.php">Feedback</a></li>
             </ul>
         </nav>
@@ -934,8 +933,8 @@ if (isset($_SESSION['success_message'])) {
                     <button class="btn btn-primary" id="openAddEventModal">Add New Event</button>
                     <div class="dropdown">
                         <div class="user-profile">
-                            <div class="user-avatar">MG</div>
-                            <span>Manager</span>
+                            <div class="user-avatar">AD</div>
+                            <span>Admin</span>
                         </div>
                         <div class="dropdown-content">
                             <a href="logout.php" class="dropdown-item">Log Out</a>

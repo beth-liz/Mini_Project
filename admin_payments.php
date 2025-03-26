@@ -8,7 +8,7 @@ header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT"); // Past date
 
 // Add session validation
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     // Clear any existing session data
     session_unset();
     session_destroy();
@@ -30,77 +30,33 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) >
 $_SESSION['last_activity'] = time();
 
 // Check if user is logged in and is a manager
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header('Location: signin.php');
     exit();
 }
 
 // Check if user is logged in and is a manager
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header('Location: signin.php');
     exit();
 }
 
-require_once 'db_connect.php';
+// Add at the top of the file
+require_once 'db_connect.php'; // Updated path to database connection file
 
-$activeSection = 'bookings';
+// Add this at the very top of your PHP code, after require_once 'db_connect.php';
+$activeSection = 'payments';
 
-function getBookings() {
-    global $conn;
-    $sql = "SELECT b.*, 
-            u.name as user_name,
-            san.sub_act_name as sub_activity_name,
-            a.activity_type,
-            ts.slot_date,
-            ts.slot_start_time,
-            ts.slot_end_time,
-            m.membership_type as user_membership_type
-            FROM booking b
-            JOIN users u ON b.user_id = u.user_id
-            JOIN sub_activity sa ON b.sub_activity_id = sa.sub_activity_id
-            JOIN sub_activity_name san ON sa.sub_act_id = san.sub_act_id
-            JOIN activity a ON sa.activity_id = a.activity_id
-            JOIN timeslots ts ON b.slot_id = ts.slot_id
-            LEFT JOIN memberships m ON u.membership_id = m.membership_id
-            ORDER BY b.booking_id ASC";
-    $stmt = $conn->query($sql);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
 
-$bookings = getBookings();
+// Process activity form submission
+// Process activity form submission
 
-// Add this near the top where other form processing happens
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_booking'])) {
-    $user_id = $_POST['user_id'];
-    $sub_activity_id = $_POST['sub_activity_id'];
-    $slot_id = $_POST['slot_id'];
-    $membership_id = $_POST['membership_id'];
-    
-    if (!empty($user_id) && !empty($sub_activity_id) && !empty($slot_id) && !empty($membership_id)) {
-        try {
-            $sql = "INSERT INTO booking (user_id, sub_activity_id, slot_id, booking_date, booking_time, membership_id) 
-                    VALUES (:user_id, :sub_activity_id, :slot_id, CURDATE(), CURTIME(), :membership_id)";
-            $stmt = $conn->prepare($sql);
-            $stmt->execute([
-                'user_id' => $user_id,
-                'sub_activity_id' => $sub_activity_id,
-                'slot_id' => $slot_id,
-                'membership_id' => $membership_id
-            ]);
-            
-            // Refresh the bookings list
-            $bookings = getBookings();
-        } catch (PDOException $e) {
-            $error_message = "Error: " . $e->getMessage();
-        }
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Manager Dashboard</title>
+    <title>Admin Dashboard</title>
     <style>
         :root {
             --primary-color: #00bcd4;
@@ -173,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_booking'])) {
             cursor: pointer;
             transition: all 0.3s ease;
             color: white;
+            text-decoration: none;
         }
 
         .sidebar-nav-item:hover {
@@ -454,140 +411,140 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_booking'])) {
             color: white; /* Change to your desired color */
             opacity: 0.7; /* Optional: Adjusts the opacity of the placeholder text */
         }
+
+        .error-message {
+    color: #ff6b6b;
+    font-size: 0.9em;
+    margin-top: 5px;
+    display: none;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.error {
+    border-color: #ff6b6b !important;
+}
+
+        /* Add this to your existing styles */
+        .total-amount {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(76, 132, 196, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 10px;
+            color: white;
+        }
+
+        .total-amount h3 {
+            font-size: 1.2rem;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
     <aside class="sidebar">
-        <div class="sidebar-logo">Manager Dashboard</div>
+        <div class="sidebar-logo">Admin Dashboard</div>
         <nav>
         <ul class="sidebar-nav">
-                <li class="sidebar-nav-item"><a href="manager_dashboard.php">Overview</a></li>
-                <li class="sidebar-nav-item"><a href="manager_user.php">Users</a></li>
-                <li class="sidebar-nav-item"><a href="manager_activities.php">Activities</a></li>
-                <li class="sidebar-nav-item"><a href="manager_sub_activities.php">Sub-Activities</a></li>
-                <li class="sidebar-nav-item"><a href="manager_membership.php">Membership</a></li>
-                <li class="sidebar-nav-item"><a href="manager_time_slots.php">Time Slots</a></li>
-                <li class="sidebar-nav-item active"><a href="manager_bookings.php">Bookings</a></li>
-                <li class="sidebar-nav-item"><a href="manager_events.php">Events</a></li>
-                <li class="sidebar-nav-item"><a href="manager_payments.php">Payments</a></li>
-                <li class="sidebar-nav-item"><a href="manager_feedback.php">Feedback</a></li>
+                <li class="sidebar-nav-item"><a href="admin_overview.php">Overview</a></li>
+                <li class="sidebar-nav-item"><a href="admin_user.php">Users</a></li>
+                <li class="sidebar-nav-item"><a href="admin_activities.php">Activities</a></li>
+                <li class="sidebar-nav-item"><a href="admin_sub_activities.php">Sub-Activities</a></li>
+                <li class="sidebar-nav-item"><a href="admin_membership.php">Membership</a></li>
+                <li class="sidebar-nav-item"><a href="admin_time_slots.php">Time Slots</a></li>
+                <li class="sidebar-nav-item"><a href="admin_bookings.php">Bookings</a></li>
+                <li class="sidebar-nav-item"><a href="admin_events.php">Events</a></li>
+                <li class="sidebar-nav-item active"><a href="admin_payments.php">Payments</a></li>
+                <li class="sidebar-nav-item"><a href="admin_feedback.php">Feedback</a></li>
             </ul>
         </nav>
     </aside>
 
     <main class="dashboard-content">
-        <div id="bookings-section" class="dashboard-section">
+        <div id="activities-section" class="dashboard-section">
             <header class="dashboard-header">
-                <h1>Booking Management</h1>
+                <h1>Payment Management</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary" id="add-booking-btn">Add New Booking</button>
                     <div class="dropdown">
                         <div class="user-profile">
-                            <div class="user-avatar">MG</div>
-                            <span>Manager</span>
+                            <div class="user-avatar">AD</div>
+                            <span>Admin</span>
                         </div>
                         <div class="dropdown-content">
-                            <a href="signin.php" class="dropdown-item">Log Out</a>
+                            <a href="logout.php" class="dropdown-item">Log Out</a>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <section class="section-content">
-                <!-- Add booking form -->
-                <div id="add-booking-form" style="display: none; margin-bottom: 20px;">
-                    <form method="POST" class="form-container">
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <select name="user_id" required 
-                                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                           background: rgba(255,255,255,0.1); color: white;">
-                                <option value="">Select User</option>
-                                <?php foreach ($users as $user): ?>
-                                    <option value="<?php echo $user['user_id']; ?>">
-                                        <?php echo htmlspecialchars($user['name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select name="sub_activity_id" required 
-                                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                           background: rgba(255,255,255,0.1); color: white;">
-                                <option value="">Select Activity</option>
-                                <?php foreach ($subActivities as $subActivity): ?>
-                                    <option value="<?php echo $subActivity['sub_activity_id']; ?>">
-                                        <?php echo htmlspecialchars($subActivity['activity_type'] . ' - ' . $subActivity['sub_activity_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select name="slot_id" required 
-                                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                           background: rgba(255,255,255,0.1); color: white;">
-                                <option value="">Select Time Slot</option>
-                                <?php foreach ($timeSlots as $slot): ?>
-                                    <option value="<?php echo $slot['slot_id']; ?>">
-                                        <?php echo date('Y-m-d', strtotime($slot['slot_date'])) . ' ' . 
-                                                 date('H:i', strtotime($slot['slot_start_time'])) . '-' . 
-                                                 date('H:i', strtotime($slot['slot_end_time'])); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select name="membership_id" required 
-                                    style="padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.2); 
-                                           background: rgba(255,255,255,0.1); color: white;">
-                                <option value="">Select Membership</option>
-                                <?php foreach ($memberships as $membership): ?>
-                                    <option value="<?php echo $membership['membership_id']; ?>">
-                                        <?php echo htmlspecialchars($membership['membership_type']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <input type="hidden" name="add_booking" value="1">
-                            <button type="submit" class="btn btn-primary">Save Booking</button>
-                            <button type="button" class="btn btn-secondary" id="cancel-booking-btn">Cancel</button>
-                        </div>
-                    </form>
-                </div>
+            <!-- Add the payment table section here -->
+            <div class="section-content">
+                <?php
+                $totalAmount = 0; // Initialize total amount
 
-                <!-- Bookings table -->
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Activity</th>
-                            <th>Sub-Activity</th>
-                            <th>Date</th>
-                            <th>Time</th>
-                            <th>Membership</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($bookings as $booking): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($booking['user_name']); ?></td>
-                                <td><?php echo htmlspecialchars($booking['activity_type']); ?></td>
-                                <td><?php echo htmlspecialchars($booking['sub_activity_name']); ?></td>
-                                <td><?php echo date('Y-m-d', strtotime($booking['booking_date'])); ?></td>
-                                <td><?php echo date('H:i', strtotime($booking['booking_time'])); ?></td>
-                                <td><?php echo isset($booking['user_membership_type']) ? htmlspecialchars($booking['user_membership_type']) : ''; ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </section>
+                // Modify the query to use the correct column names from your users table
+                $query = "SELECT p.*, u.name, u.email 
+                          FROM payment p 
+                          JOIN users u ON p.user_id = u.user_id 
+                          ORDER BY p.payment_date DESC, p.payment_time DESC";
+                $result = $conn->query($query);
+
+                if ($result->rowCount() > 0) {
+                    echo '<table class="data-table">';
+                    echo '<thead><tr>
+                            <th>User Name</th>
+                            <th>Email</th>
+                            <th>Amount</th>
+                            <th>Date & Time</th>
+                            <th>Type</th>
+                            <th>Reference ID</th>
+                          </tr></thead>';
+                    echo '<tbody>';
+                    while ($row = $result->fetch(PDO::FETCH_ASSOC)) {
+                        // Add to total
+                        $totalAmount += $row['amount'];
+
+                        // Determine payment type and reference
+                        $paymentType = '';
+                        $referenceId = '';
+                        if ($row['booking_id']) {
+                            $paymentType = 'Booking';
+                            $referenceId = $row['booking_id'];
+                        } elseif ($row['event_reg_id']) {
+                            $paymentType = 'Event';
+                            $referenceId = $row['event_reg_id'];
+                        } elseif ($row['membership_reg_id']) {
+                            $paymentType = 'Membership';
+                            $referenceId = $row['membership_reg_id'];
+                        }
+
+                        echo '<tr>';
+                        echo '<td>' . htmlspecialchars($row['name']) . '</td>';
+                        echo '<td>' . htmlspecialchars($row['email']) . '</td>';
+                        echo '<td>₹' . number_format($row['amount'], 2) . '</td>';
+                        echo '<td>' . date('M d, Y h:i A', strtotime($row['payment_date'] . ' ' . $row['payment_time'])) . '</td>';
+                        echo '<td>' . htmlspecialchars($paymentType) . '</td>';
+                        echo '<td>' . htmlspecialchars($referenceId) . '</td>';
+                        echo '</tr>';
+                    }
+                    echo '</tbody></table>';
+                    
+                    // Add total amount display
+                    echo '<div class="total-amount">
+                            <h3>Total Amount: ₹' . number_format($totalAmount, 2) . '</h3>
+                          </div>';
+                } else {
+                    echo '<p>No payment records found.</p>';
+                }
+                ?>
+            </div>
         </div>
     </main>
-
-    <!-- Add JavaScript for navigation -->
-    <script>
-
-        document.getElementById('add-booking-btn').addEventListener('click', function() {
-            document.getElementById('add-booking-form').style.display = 'block';
-            this.style.display = 'none';
-        });
-
-        document.getElementById('cancel-booking-btn').addEventListener('click', function() {
-            document.getElementById('add-booking-form').style.display = 'none';
-            document.getElementById('add-booking-btn').style.display = 'block';
-        });
-    </script>
 </body>
 </html>

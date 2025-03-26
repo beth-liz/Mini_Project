@@ -537,10 +537,6 @@ if (isset($success_message) || isset($error_message)) {
                 <h1>Membership Management</h1>
                 <div class="header-actions">
                     <button class="btn btn-primary" id="add-membership-btn">Add New Membership</button>
-                    <div class="notifications">
-                        <span class="notifications-icon">🔔</span>
-                        <span class="notifications-badge">3</span>
-                    </div>
                     <div class="dropdown">
                         <div class="user-profile">
                             <div class="user-avatar">AD</div>

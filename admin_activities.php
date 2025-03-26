@@ -593,6 +593,7 @@ $subActivities = getSubActivities();
                 <li class="sidebar-nav-item"><a href="admin_time_slots.php">Time Slots</a></li>
                 <li class="sidebar-nav-item"><a href="admin_bookings.php">Bookings</a></li>
                 <li class="sidebar-nav-item"><a href="admin_events.php">Events</a></li>
+                <li class="sidebar-nav-item"><a href="admin_payments.php">Payments</a></li>
                 <li class="sidebar-nav-item"><a href="admin_feedback.php">Feedback</a></li>
             </ul>
         </nav>
@@ -605,10 +606,6 @@ $subActivities = getSubActivities();
                 <h1>Activity Management</h1>
                 <div class="header-actions">
                     <button class="btn btn-primary" id="add-activity-btn">Add New Activity</button>
-                    <div class="notifications">
-                        <span class="notifications-icon">🔔</span>
-                        <span class="notifications-badge">3</span>
-                    </div>
                     <div class="dropdown">
                         <div class="user-profile">
                             <div class="user-avatar">AD</div>

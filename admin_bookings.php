@@ -8,7 +8,7 @@ header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT"); // Past date
 
 // Add session validation
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     // Clear any existing session data
     session_unset();
     session_destroy();
@@ -30,13 +30,13 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) >
 $_SESSION['last_activity'] = time();
 
 // Check if user is logged in and is a manager
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+    if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header('Location: signin.php');
     exit();
 }
 
 // Check if user is logged in and is a manager
-if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'manager') {
+if (!isset($_SESSION['email']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header('Location: signin.php');
     exit();
 }
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_booking'])) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Manager Dashboard</title>
+    <title>Admin Dashboard</title>
     <style>
         :root {
             --primary-color: #00bcd4;
@@ -461,16 +461,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_booking'])) {
         <div class="sidebar-logo">Manager Dashboard</div>
         <nav>
         <ul class="sidebar-nav">
-                <li class="sidebar-nav-item"><a href="manager_dashboard.php">Overview</a></li>
-                <li class="sidebar-nav-item"><a href="manager_user.php">Users</a></li>
-                <li class="sidebar-nav-item"><a href="manager_activities.php">Activities</a></li>
-                <li class="sidebar-nav-item"><a href="manager_sub_activities.php">Sub-Activities</a></li>
-                <li class="sidebar-nav-item"><a href="manager_membership.php">Membership</a></li>
-                <li class="sidebar-nav-item"><a href="manager_time_slots.php">Time Slots</a></li>
-                <li class="sidebar-nav-item active"><a href="manager_bookings.php">Bookings</a></li>
-                <li class="sidebar-nav-item"><a href="manager_events.php">Events</a></li>
-                <li class="sidebar-nav-item"><a href="manager_payments.php">Payments</a></li>
-                <li class="sidebar-nav-item"><a href="manager_feedback.php">Feedback</a></li>
+                <li class="sidebar-nav-item"><a href="admin_overview.php">Overview</a></li>
+                <li class="sidebar-nav-item"><a href="admin_user.php">Users</a></li>
+                <li class="sidebar-nav-item"><a href="admin_activities.php">Activities</a></li>
+                <li class="sidebar-nav-item"><a href="admin_sub_activities.php">Sub-Activities</a></li>
+                <li class="sidebar-nav-item"><a href="admin_membership.php">Membership</a></li>
+                <li class="sidebar-nav-item"><a href="admin_time_slots.php">Time Slots</a></li>
+                <li class="sidebar-nav-item active"><a href="admin_bookings.php">Bookings</a></li>
+                <li class="sidebar-nav-item"><a href="admin_events.php">Events</a></li>
+                <li class="sidebar-nav-item"><a href="admin_feedback.php">Feedback</a></li>
             </ul>
         </nav>
     </aside>
@@ -483,8 +482,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_booking'])) {
                     <button class="btn btn-primary" id="add-booking-btn">Add New Booking</button>
                     <div class="dropdown">
                         <div class="user-profile">
-                            <div class="user-avatar">MG</div>
-                            <span>Manager</span>
+                            <div class="user-avatar">AD</div>
+                            <span>Admin</span>
                         </div>
                         <div class="dropdown-content">
                             <a href="signin.php" class="dropdown-item">Log Out</a>

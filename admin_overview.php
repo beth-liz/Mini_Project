@@ -68,14 +68,10 @@ function getTotalBookings() {
 // Fetch total revenue in Rupees
 function getTotalRevenue() {
     global $conn;
-    $sql = "SELECT SUM(event_price) as total_revenue FROM events"; // Adjust this query based on your revenue source
+    $sql = "SELECT SUM(amount) as total_revenue FROM payment";
     $stmt = $conn->query($sql);
     $totalRevenue = $stmt->fetchColumn();
-    
-    // Assuming the revenue is in a different currency, convert it to Rupees
-    // For example, if 1 unit of the original currency equals 75 Rupees:
-    $conversionRate = 75; // Adjust this rate as necessary
-    return $totalRevenue * $conversionRate; // Convert to Rupees
+    return $totalRevenue ?: 0; // Return 0 if no payments found
 }
 
 // Add this function to fetch the total number of events
@@ -107,6 +103,73 @@ $totalUsers = getTotalUsers();
 $totalBookings = getTotalBookings();
 $totalRevenue = getTotalRevenue();
 $totalEvents = getTotalEvents(); // Fetch the total number of events
+
+// Add these new functions at the top of your PHP code section
+function getMonthlyStats() {
+    global $conn;
+    try {
+        $sql = "SELECT 
+                DATE_FORMAT(mr.membership_reg_date, '%Y-%m') as month,
+                COUNT(DISTINCT u.user_id) as user_count,
+                COUNT(DISTINCT CASE WHEN m.membership_type != 'normal' THEN u.user_id END) as active_users
+                FROM users u
+                LEFT JOIN membership_reg mr ON u.user_id = mr.user_id
+                LEFT JOIN memberships m ON u.membership_id = m.membership_id
+                GROUP BY DATE_FORMAT(mr.membership_reg_date, '%Y-%m')
+                ORDER BY month DESC 
+                LIMIT 12";
+        $stmt = $conn->query($sql);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        // Return empty array if there's an error
+        return [];
+    }
+}
+
+function getMonthlyRevenue() {
+    global $conn;
+    try {
+        $sql = "SELECT 
+                DATE_FORMAT(p.payment_date, '%Y-%m') as month,
+                SUM(p.amount) as revenue
+                FROM payment p
+                GROUP BY DATE_FORMAT(p.payment_date, '%Y-%m')
+                ORDER BY month DESC 
+                LIMIT 12";
+        $stmt = $conn->query($sql);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        // Return empty array if there's an error
+        return [];
+    }
+}
+
+// Add this function to handle empty data
+function getEmptyMonthsData() {
+    $data = [];
+    for ($i = 11; $i >= 0; $i--) {
+        $month = date('Y-m', strtotime("-$i months"));
+        $data[] = [
+            'month' => $month,
+            'user_count' => 0,
+            'active_users' => 0,
+            'revenue' => 0
+        ];
+    }
+    return $data;
+}
+
+// Modify how you fetch the data
+$monthlyStats = getMonthlyStats();
+$monthlyRevenue = getMonthlyRevenue();
+
+// If no data is returned, use empty data
+if (empty($monthlyStats)) {
+    $monthlyStats = getEmptyMonthsData();
+}
+if (empty($monthlyRevenue)) {
+    $monthlyRevenue = getEmptyMonthsData();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -489,17 +552,19 @@ $totalEvents = getTotalEvents(); // Fetch the total number of events
             text-decoration: none; /* Ensure no underline on hover */
         }
 
-        /* Add a placeholder for charts */
+        /* Replace both .chart-placeholder CSS rules with this single one */
         .chart-placeholder {
-            height: 300px; /* Set height for the chart */
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            height: 400px;
+            background-color: white;
+            border: 1px solid rgba(0, 0, 0, 0.1);
             border-radius: 10px;
-            margin-top: 20px; /* Add margin for spacing */
+            margin: 20px 0;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: #333;
             font-size: 1.5rem;
         }
 
@@ -521,20 +586,6 @@ $totalEvents = getTotalEvents(); // Fetch the total number of events
 
         .data-table tr:hover {
             background-color: rgba(255, 255, 255, 0.1); /* Hover effect */
-        }
-
-        /* Add a placeholder for charts */
-        .chart-placeholder {
-            height: 300px; /* Set height for the chart */
-            background-color: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-            margin-top: 20px; /* Add margin for spacing */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.5rem;
         }
 
         .btn:disabled {
@@ -562,6 +613,7 @@ $totalEvents = getTotalEvents(); // Fetch the total number of events
                 <li class="sidebar-nav-item"><a href="admin_time_slots.php">Time Slots</a></li>
                 <li class="sidebar-nav-item"><a href="admin_bookings.php">Bookings</a></li>
                 <li class="sidebar-nav-item"><a href="admin_events.php">Events</a></li>
+                <li class="sidebar-nav-item"><a href="admin_payments.php">Payments</a></li>
                 <li class="sidebar-nav-item"><a href="admin_feedback.php">Feedback</a></li>
             </ul>
         </nav>
@@ -572,10 +624,6 @@ $totalEvents = getTotalEvents(); // Fetch the total number of events
             <header class="dashboard-header">
                 <h1>Admin Overview</h1>
                 <div class="header-actions">
-                    <div class="notifications">
-                        <span class="notifications-icon">🔔</span>
-                        <span class="notifications-badge">3</span>
-                    </div>
                     <div class="dropdown">
                         <div class="user-profile">
                             <div class="user-avatar">AD</div>
@@ -607,7 +655,7 @@ $totalEvents = getTotalEvents(); // Fetch the total number of events
                 </div>
             </section>
 
-            <div class="chart-placeholder" style="margin-bottom: 20px;">
+            <div class="chart-placeholder" style="background-color: white !important;">
                 <canvas id="myChart"></canvas>
             </div>
 
@@ -639,58 +687,160 @@ $totalEvents = getTotalEvents(); // Fetch the total number of events
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+    document.addEventListener('DOMContentLoaded', function() {
         const ctx = document.getElementById('myChart').getContext('2d');
+        
+        // Parse PHP data
+        const monthlyStats = <?php echo json_encode($monthlyStats); ?>;
+        const monthlyRevenue = <?php echo json_encode($monthlyRevenue); ?>;
+
+        // Process data for the chart
+        const labels = monthlyStats.map(item => {
+            const date = new Date(item.month + '-01');
+            return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        }).reverse();
+
+        const userData = monthlyStats.map(item => item.user_count).reverse();
+        const activeUserData = monthlyStats.map(item => item.active_users).reverse();
+        const revenueData = monthlyRevenue.map(item => item.revenue / 1000).reverse();
+
+        // Create gradient for the background
+        const gradient1 = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient1.addColorStop(0, 'rgba(54, 162, 235, 0.3)');
+        gradient1.addColorStop(1, 'rgba(54, 162, 235, 0.1)');
+
+        const gradient2 = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient2.addColorStop(0, 'rgba(255, 99, 132, 0.3)');
+        gradient2.addColorStop(1, 'rgba(255, 99, 132, 0.1)');
+
+        const gradient3 = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient3.addColorStop(0, 'rgba(75, 192, 192, 0.3)');
+        gradient3.addColorStop(1, 'rgba(75, 192, 192, 0.1)');
+
         const myChart = new Chart(ctx, {
-            type: 'bar',
+            type: 'line',
             data: {
-                labels: ['Total Users', 'Total Bookings', 'Revenue (in ₹)', 'Events Scheduled'],
-                datasets: [{
-                    label: 'Statistics',
-                    data: [<?php echo $totalUsers; ?>, <?php echo $totalBookings; ?>, <?php echo number_format($totalRevenue, 2); ?>, <?php echo $totalEvents; ?>], // Format revenue to 2 decimal places
-                    backgroundColor: [
-                        'rgba(54, 162, 235, 0.8)', // Light blue
-                        'rgba(255, 99, 132, 0.8)', // Light red
-                        'rgba(75, 192, 192, 0.8)', // Light teal
-                        'rgba(255, 206, 86, 0.8)'  // Light yellow
-                    ],
-                    borderColor: [
-                        'rgba(54, 162, 235, 1)', // Dark blue
-                        'rgba(255, 99, 132, 1)', // Dark red
-                        'rgba(75, 192, 192, 1)', // Dark teal
-                        'rgba(255, 206, 86, 1)'  // Dark yellow
-                    ],
-                    borderWidth: 1
-                }]
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Total Users',
+                        data: userData,
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: gradient1,
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Active Users',
+                        data: activeUserData,
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: gradient2,
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    },
+                    {
+                        label: 'Revenue (₹ thousands)',
+                        data: revenueData,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: gradient3,
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        yAxisID: 'revenue'
+                    }
+                ]
             },
             options: {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.5)' // White grid lines
-                        },
-                        ticks: {
-                            color: 'white' // White numbers on the y-axis
-                        }
-                    },
-                    x: {
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.5)' // White grid lines
-                        },
-                        ticks: {
-                            color: 'white' // White numbers on the x-axis
-                        }
-                    }
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
                 },
                 plugins: {
                     legend: {
+                        position: 'top',
                         labels: {
-                            color: 'white' // White legend text
+                            color: '#333', // Changed to dark color
+                            font: {
+                                size: 12
+                            },
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        titleColor: '#333',
+                        bodyColor: '#333',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        displayColors: true,
+                        borderColor: '#ddd',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.dataset.yAxisID === 'revenue') {
+                                    label += '₹' + context.parsed.y.toFixed(2) + 'k';
+                                } else {
+                                    label += context.parsed.y;
+                                }
+                                return label;
+                            }
                         }
                     }
-                }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            color: '#333'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            color: '#333'
+                        }
+                    },
+                    revenue: {
+                        position: 'right',
+                        beginAtZero: true,
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#333'
+                        }
+                    }
+                },
+                backgroundColor: 'white', // Add white background
             }
         });
+    });
     </script>
 </body>
 </html>

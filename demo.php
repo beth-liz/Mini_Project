@@ -47,7 +47,7 @@ try {
     $stmt->execute();
     $activities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    error_log("Error in user_fitness.php: " . $e->getMessage());
+    error_log("Error in user_outdoor.php: " . $e->getMessage());
     // Handle error appropriately
 }
 
@@ -81,8 +81,8 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Aboreto&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400&family=Goldman&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;700&display=swap');
-        
         * {
             margin: 0;
             padding: 0;
@@ -182,53 +182,54 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
         .header.scrolled {
             background: rgba(0, 0, 0, 1);
         }
+        
 
         .header nav ul {
-            list-style: none;
-            display: flex;
-            gap: 2rem;
-            justify-content: center;
-            margin: 0 auto;
-            padding: 0;
-        }
+    list-style: none;
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    margin: 0 auto;
+    padding: 0;
+}
 
-        .header div a button {
-            transition: background-color 0.3s ease-in-out, transform 0.2s ease;
-        }
+.header div a button {
+    transition: background-color 0.3s ease-in-out, transform 0.2s ease;
+}
 
-        .header div a button:hover {
-            color: #00bcd4;
-            border-color: #00bcd4;
-            transform: scale(1.1);
-        }
+.header div a button:hover {
+    color: #00bcd4;
+    border-color: #00bcd4;
+    transform: scale(1.1);
+}
+.log
+{
+    padding: 10px 20px;
+    font-size: 1rem; 
+    font-family: 'Cinzel Decorative', cursive; 
+    background-color: #007cd400; 
+    color: white;
+    padding: 10px 50px;
+    border-style: solid;
+    border-width:1px;
+    border-color: white;
+    border-radius: 0px; 
+    cursor: pointer;
+    transition: background-color 0.3s ease-in-out;
+}
 
-        .log {
-            padding: 10px 20px;
-            font-size: 1rem; 
-            font-family: 'Cinzel Decorative', cursive; 
-            background-color: #007cd400; 
-            color: white;
-            padding: 10px 50px;
-            border-style: solid;
-            border-width: 1px;
-            border-color: white;
-            border-radius: 0px; 
-            cursor: pointer;
-            transition: background-color 0.3s ease-in-out;
-        }
+.log:hover {
+    color: #00bcd4;
+    border-color: #00bcd4;
+}
+.header div {
+    display: flex;
+    gap: 15px;
+    margin-right: 40px; /* Adjust spacing to push buttons further right */
+}
 
-        .log:hover {
-            color: #00bcd4;
-            border-color: #00bcd4;
-        }
 
-        .header div {
-            display: flex;
-            gap: 15px;
-            margin-right: 40px; /* Adjust spacing to push buttons further right */
-        }
-
-        .header nav ul li {
+       .header nav ul li {
             position: relative;
         }
 
@@ -259,7 +260,7 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             color: #00bcd4;
         }
 
-        .are {
+        .are{
             text-decoration: none;
         }
 
@@ -456,554 +457,591 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
                 width: 100%; /* 1 image per row for very small screens */
             }
         }
-
         /* Footer Styles */
-        footer {
-            background-color: #282c34;
-            font-family: 'Goldman', cursive;
-            color: white;
-            padding: 40px 20px;
-        }
-
-        .footer-container {
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .footer-column {
-            flex: 1;
-            min-width: 250px;
-            margin: 10px;
-        }
-
-        .footer-column h3 {
-            margin-bottom: 15px;
-            font-size: 18px;
-            text-transform: uppercase;
-            color: #9f799e; /* Highlighted color for headings */
-        }
-
-        .footer-column p,
-        .footer-column ul {
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .footer-column ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        .footer-column ul li {
-            margin-bottom: 10px;
-        }
-
-        .footer-column ul li a {
-            color: white;
-            text-decoration: none;
-            transition: color 0.3s ease;
-        }
-
-        .footer-column ul li a:hover {
-            color: #00eeff; /* Highlight color on hover */
-        }
-
-        .social-links {
-            display: flex;
-            gap: 10px;
-        }
-
-        .social-links a {
-            color: white;
-            font-size: 20px;
-            transition: color 0.3s ease;
-        }
-
-        .social-links a:hover {
-            color: #6ad3d8; /* Highlight color on hover */
-        }
-
-        .footer-bottom {
-            text-align: center;
-            padding-top: 20px;
-            font-size: 14px;
-            border-top: 1px solid #444;
-            margin-top: 20px;
-        }
-
-        @media (max-width: 768px) {
-            .footer-container {
-                flex-direction: column;
-                text-align: center;
-            }
-
-            .footer-column {
-                margin: 20px 0;
-            }
-        }
-
-        /* Add styles for the activities heading */
-        .activities-heading {
-            text-align: center;
-            padding: 4rem 0 2rem 0;
-            position: relative;
-            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/r14.jpg') no-repeat center center;
-            background-size: cover;
-            background-attachment: fixed;
-        }
-
-        .activities-heading h2 {
-            font-size: 2.8rem;
-            color: white;
-            font-family: 'Bodoni Moda', serif;
-            position: relative;
-            display: inline-block;
-        }
-
-        .activities-heading h2::after {
-            content: '';
-            position: absolute;
-            bottom: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100px;
-            height: 3px;
-            background: linear-gradient(90deg, #00bcd4, #ff4081, #00bcd4);
-            background-size: 200% 100%;
-            animation: gradientMove 3s ease infinite;
-        }
-
-        @keyframes gradientMove {
-            0% {
-                background-position: 100% 0;
-            }
-            50% {
-                background-position: 0 0;
-            }
-            100% {
-                background-position: 100% 0;
-            }
-        }
-
-        /* Dropdown styles */
-        .dropdown {
-            display: none;
-            position: absolute;
-            background-color: rgba(0, 0, 0, 0.9);
-            min-width: 200px;
-            border-radius: 0;
-            padding: 8px 0;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
-            top: 100%;
-            left: 0;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .dropdown a {
-            display: block;
-            padding: 12px 20px;
-            color: #fff;
-            text-decoration: none;
-            font-family: 'Bodoni Moda', serif;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .dropdown a:last-child {
-            border-bottom: none;
-        }
-
-        .dropdown a:hover {
-            background-color: rgba(0, 188, 212, 0.2);
-            padding-left: 25px;
-            color: #00bcd4;
-        }
-
-        /* Arrow at the top of dropdown */
-        .dropdown::before {
-            content: '';
-            position: absolute;
-            top: -8px;
-            left: 20px;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-bottom: 8px solid rgba(0, 0, 0, 0.9);
-        }
-
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            z-index: 1001;
-            overflow-y: auto;
-        }
-
-        .modal-content {
-            position: relative;
-            background: rgba(76, 132, 196, 0.15);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            margin: 5% auto;
-            padding: 20px;
-            width: 90%;
-            max-width: 600px;
-            border-radius: 10px;
-            color: white;
-            font-family: 'Bodoni Moda', serif;
-        }
-
-        .close-modal {
-            position: absolute;
-            right: 20px;
-            top: 10px;
-            font-size: 30px;
-            cursor: pointer;
-            color: white;
-            transition: color 0.3s ease;
-        }
-
-        .close-modal:hover {
-            color: #00bcd4;
-        }
-
-        .modal-body {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .modal-image-container {
-            width: 100%;
-            max-width: 300px;
-            margin: 0 auto;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .modal-image-container img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .modal-details {
-            flex: 1;
-            padding: 0 20px;
-        }
-
-        .modal-details h2 {
-            font-family: 'Bodoni Moda', serif;
-            font-size: 1.8rem;
-            margin-bottom: 20px;
-            color: white;
-            text-align: center;
-        }
-
-        .activity-details {
-            margin-bottom: 20px;
-        }
-
-        .detail-row {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
-        }
-
-        .detail-label {
-            font-family: 'Bodoni Moda', serif;
-            font-weight: bold;
-            color: #00bcd4;
-            display: block;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-
-        .time-slot-select {
-            width: 100%;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            border-radius: 5px;
-            font-family: 'Aboreto', cursive;
-        }
-
-        .time-slot-select option {
-            background: #2c3e50;
-            color: white;
-        }
-
-        .price {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #00bcd4;
-        }
-
-        .proceed-payment {
-            background-color: #00bcd4;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 1.1rem;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Bodoni Moda', serif;
-            width: 100%;
-        }
-
-        .proceed-payment:hover {
-            background-color: #008ba3;
-            transform: translateY(-2px);
-        }
-
-        .proceed-payment:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        @media screen and (max-width: 768px) {
-            .modal-content {
-                width: 95%;
-                margin: 10% auto;
-            }
-        }
-
-        .time-slot-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 10px;
-        }
-
-        .time-slot-button {
-            padding: 10px 20px;
-            border: 2px solid #00bcd4;
-            background-color: transparent;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Bodoni Moda', serif;
-            font-size: 1rem;
-            min-width: 200px; /* Ensure buttons are wide enough for the time format */
-            text-align: center;
-            letter-spacing: 0.5px;
-        }
-
-        .time-slot-button:hover {
-            background-color: rgba(0, 188, 212, 0.2);
-            transform: translateY(-2px);
-            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
-        }
-
-        .time-slot-button.selected {
-            background-color: #00bcd4;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
-        }
-
-        .time-slot-button:disabled {
-            border-color: #666;
-            color: #666;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .detail-row {
-            margin-bottom: 20px;
-        }
-
-        .time-slot-select {
-            width: 100%;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            border-radius: 5px;
-            font-family: 'Aboreto', cursive;
-            margin-bottom: 10px;
-        }
-
-        .time-slot-select option {
-            background: #2c3e50;
-            color: white;
-        }
-
-        /* Add these styles for the date picker */
-        input[type="date"] {
-            width: 100%;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            border-radius: 5px;
-            font-family: 'Aboreto', cursive;
-            margin-bottom: 10px;
-        }
-
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            filter: invert(1);
-            cursor: pointer;
-        }
-
-        /* Add styles for upgrade modal */
-        .upgrade-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .upgrade-modal-content {
-            background: rgba(76, 132, 196, 0.15);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            padding: 40px;
-            width: 90%;
-            max-width: 500px;
-            border-radius: 10px;
-            color: white;
-            text-align: center;
-        }
-
-        .upgrade-modal h2 {
-            color: #00bcd4;
-            margin-bottom: 20px;
-        }
-
-        .upgrade-button {
-            background-color: #00bcd4;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 1.1rem;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Bodoni Moda', serif;
-            margin-top: 20px;
-        }
-
-        .upgrade-button:hover {
-            background-color: #008ba3;
-            transform: translateY(-2px);
-        }
-
-        /* Add these styles to your existing CSS */
-        .booking-type-container {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .booking-type-btn {
-            flex: 1;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-family: 'Bodoni Moda', serif;
-            border-radius: 5px;
-        }
-
-        .booking-type-btn.active {
-            background: #00bcd4;
-            border-color: #00bcd4;
-        }
-
-        .booking-options {
-            display: none;
-        }
-
-        .booking-options.active {
-            display: block;
-        }
-
-        .days-of-week-container {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-
-        .day-box {
-            width: 50px;
-            height: 50px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-family: 'Bodoni Moda', serif;
-            font-size: 0.9rem;
-            color: white;
-            transition: all 0.3s ease;
-        }
-
-        .day-box:hover {
-            border-color: #00bcd4;
-            background: rgba(0, 188, 212, 0.1);
-        }
-
-        .day-box.selected {
-            background: #00bcd4;
-            border-color: #00bcd4;
-            color: white;
-        }
-
-        .recurring-summary {
-            margin-top: 20px;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-
-        .recurring-summary ul {
-            list-style: none;
-            padding: 0;
-            margin: 10px 0 0 0;
-        }
-
-        .recurring-summary li {
-            margin-bottom: 5px;
-            padding-left: 20px;
-            position: relative;
-        }
-
-        .recurring-summary li::before {
-            content: '•';
-            position: absolute;
-            left: 0;
-            color: #00bcd4;
-        }
+footer {
+    background-color: #282c34;
+    font-family: 'Goldman', cursive;
+    color: white;
+    padding: 40px 20px;
+}
+
+.footer-container {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.footer-column {
+    flex: 1;
+    min-width: 250px;
+    margin: 10px;
+}
+
+.footer-column h3 {
+    margin-bottom: 15px;
+    font-size: 18px;
+    text-transform: uppercase;
+    color: #9f799e; /* Highlighted color for headings */
+}
+
+.footer-column p,
+.footer-column ul {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.footer-column ul {
+    list-style: none;
+    padding: 0;
+}
+
+.footer-column ul li {
+    margin-bottom: 10px;
+}
+
+.footer-column ul li a {
+    color: white;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.footer-column ul li a:hover {
+    color: #00eeff; /* Highlight color on hover */
+}
+
+.social-links {
+    display: flex;
+    gap: 10px;
+}
+
+.social-links a {
+    color: white;
+    font-size: 20px;
+    transition: color 0.3s ease;
+}
+
+.social-links a:hover {
+    color: #6ad3d8; /* Highlight color on hover */
+}
+
+.footer-bottom {
+    text-align: center;
+    padding-top: 20px;
+    font-size: 14px;
+    border-top: 1px solid #444;
+    margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+    .footer-container {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .footer-column {
+        margin: 20px 0;
+    }
+}
+
+/* Add styles for the activities heading */
+.activities-heading {
+    text-align: center;
+    padding: 4rem 0 2rem 0;
+    position: relative;
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('img/r14.jpg') no-repeat center center;
+    background-size: cover;
+    background-attachment: fixed;
+}
+
+.activities-heading h2 {
+    font-size: 2.8rem;
+    color: white;
+    font-family: 'Bodoni Moda', serif;
+    position: relative;
+    display: inline-block;
+}
+
+.activities-heading h2::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 3px;
+    background: linear-gradient(90deg, #00bcd4, #ff4081, #00bcd4);
+    background-size: 200% 100%;
+    animation: gradientMove 3s ease infinite;
+}
+
+@keyframes gradientMove {
+    0% {
+        background-position: 100% 0;
+    }
+    50% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 100% 0;
+    }
+}
+
+/* Profile button styles */
+.log {
+    padding: 10px 20px;
+    font-size: 1rem; 
+    font-family: 'Cinzel Decorative', cursive; 
+    background-color: #007cd400; 
+    color: white;
+    padding: 10px 50px;
+    border-style: solid;
+    border-width: 1px;
+    border-color: white;
+    border-radius: 0px; 
+    cursor: pointer;
+    transition: background-color 0.3s ease-in-out;
+}
+
+.log:hover {
+    color: #00bcd4;
+    border-color: #00bcd4;
+}
+
+/* Dropdown styles */
+.dropdown {
+    display: none;
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.9);
+    min-width: 200px;
+    border-radius: 0;
+    padding: 8px 0;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    top: 100%;
+    left: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dropdown a {
+    display: block;
+    padding: 12px 20px;
+    color: #fff;
+    text-decoration: none;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dropdown a:last-child {
+    border-bottom: none;
+}
+
+.dropdown a:hover {
+    background-color: rgba(0, 188, 212, 0.2);
+    padding-left: 25px;
+    color: #00bcd4;
+}
+
+/* Arrow at the top of dropdown */
+.dropdown::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 20px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 8px solid rgba(0, 0, 0, 0.9);
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1001;
+    overflow-y: auto;
+}
+
+.modal-content {
+    position: relative;
+    background: rgba(76, 132, 196, 0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    margin: 5% auto;
+    padding: 20px;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 10px;
+    color: white;
+    font-family: 'Bodoni Moda', serif;
+}
+
+.close-modal {
+    position: absolute;
+    right: 20px;
+    top: 10px;
+    font-size: 30px;
+    cursor: pointer;
+    color: white;
+    transition: color 0.3s ease;
+}
+
+.close-modal:hover {
+    color: #00bcd4;
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.modal-image-container {
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.modal-image-container img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.modal-details {
+    flex: 1;
+    padding: 0 20px;
+}
+
+.modal-details h2 {
+    font-family: 'Bodoni Moda', serif;
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    color: white;
+    text-align: center;
+}
+
+.activity-details {
+    margin-bottom: 20px;
+}
+
+.detail-row {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+}
+
+.detail-label {
+    font-family: 'Bodoni Moda', serif;
+    font-weight: bold;
+    color: #00bcd4;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.time-slot-select {
+    width: 100%;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 5px;
+    font-family: 'Aboreto', cursive;
+}
+
+.time-slot-select option {
+    background: #2c3e50;
+    color: white;
+}
+
+.price {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #00bcd4;
+}
+
+.proceed-payment {
+    background-color: #00bcd4;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Bodoni Moda', serif;
+    width: 100%;
+}
+
+.proceed-payment:hover {
+    background-color: #008ba3;
+    transform: translateY(-2px);
+}
+
+.proceed-payment:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media screen and (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+    }
+}
+
+.time-slot-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.time-slot-button {
+    padding: 10px 20px;
+    border: 2px solid #00bcd4;
+    background-color: transparent;
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 1rem;
+    min-width: 200px; /* Ensure buttons are wide enough for the time format */
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+.time-slot-button:hover {
+    background-color: rgba(0, 188, 212, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
+}
+
+.time-slot-button.selected {
+    background-color: #00bcd4;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
+}
+
+.time-slot-button:disabled {
+    border-color: #666;
+    color: #666;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.detail-row {
+    margin-bottom: 20px;
+}
+
+.time-slot-select {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 5px;
+    font-family: 'Aboreto', cursive;
+    margin-bottom: 10px;
+}
+
+.time-slot-select option {
+    background: #2c3e50;
+    color: white;
+}
+
+/* Add these styles for the date picker */
+input[type="date"] {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 5px;
+    font-family: 'Aboreto', cursive;
+    margin-bottom: 10px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+/* Add styles for upgrade modal */
+.upgrade-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.upgrade-modal-content {
+    background: rgba(76, 132, 196, 0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 40px;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 10px;
+    color: white;
+    text-align: center;
+}
+
+.upgrade-modal h2 {
+    color: #00bcd4;
+    margin-bottom: 20px;
+}
+
+.upgrade-button {
+    background-color: #00bcd4;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Bodoni Moda', serif;
+    margin-top: 20px;
+}
+
+.upgrade-button:hover {
+    background-color: #008ba3;
+    transform: translateY(-2px);
+}
+
+/* Add these styles in your existing <style> section */
+.booking-type-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.booking-type-btn {
+    flex: 1;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Bodoni Moda', serif;
+    border-radius: 5px;
+}
+
+.booking-type-btn.active {
+    background: #00bcd4;
+    border-color: #00bcd4;
+}
+
+.booking-options {
+    display: none;
+}
+
+.booking-options.active {
+    display: block;
+}
+
+.date-range-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.input-group label {
+    color: #00bcd4;
+    font-size: 0.9em;
+}
+
+/* Add these styles in your existing <style> section */
+.days-of-week-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.day-box {
+    width: 50px;
+    height: 50px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-family: 'Bodoni Moda', serif;
+    font-size: 0.9rem;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.day-box:hover {
+    border-color: #00bcd4;
+    background: rgba(0, 188, 212, 0.1);
+}
+
+.day-box.selected {
+    background: #00bcd4;
+    border-color: #00bcd4;
+    color: white;
+}
+
+.recurring-summary {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.recurring-summary ul {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0 0;
+}
+
+.recurring-summary li {
+    margin-bottom: 5px;
+    padding-left: 20px;
+    position: relative;
+}
+
+.recurring-summary li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: #00bcd4;
+}
     </style>
 </head>
 <body>
@@ -1025,7 +1063,7 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             <div class="dropdown">
                 <a href="user_profile.php">PROFILE</a>
                 <a href="user_bookings.php">BOOKINGS</a>
-                <a href="user_calendar.php">CALENDAR</a>
+                <a href="user_calendar.php">CALENDER</a>
                 <a href="user_payment_history.php">PAYMENT HISTORY</a>
                 <a href="logout.php">LOGOUT</a>
             </div>
@@ -1046,7 +1084,7 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
     <!-- First Section: Hero Image for Indoor Games -->
     <section class="hero-section">
         <div class="hero-text">
-            gym activities
+            fitness activities
         </div>
         <div class="scroll-indicator" onclick="scrollToAbout()"></div>
     </section>
@@ -1062,7 +1100,7 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             </div>
             <div class="about-content">
                 <p style="font-family: 'Bodoni Moda', serif; font-size: 1.4rem;">
-                Welcome to FitZone, your ultimate destination for achieving your fitness goals. From top-of-the-line cardio equipment to strength training machines, we provide everything you need to stay fit and healthy. Join our community of fitness enthusiasts and start your transformation today!
+                Enjoy a variety of outdoor activities at our facility! Play team sports like basket ball and tennis or take on individual challenges like archery. With spacious courts, well-kept fields, and quality equipment, we offer the perfect setting for fun and adventure in the open air!
                 </p>
             </div>
         </div>
@@ -1072,7 +1110,6 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
     <div class="activities-heading">
         <h2>OUR ACTIVITIES</h2>
     </div>
-
     <section class="image-grid">
         <?php if (!empty($activities)): ?>
             <?php foreach ($activities as $activity): ?>
@@ -1106,7 +1143,7 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
                             <span id="modalActivityName"></span>
                         </div>
                         
-                        <!-- Add booking type buttons -->
+                        <!-- Move booking type buttons here -->
                         <div class="detail-row">
                             <span class="detail-label">Booking Type:</span>
                             <div class="booking-type-container">
@@ -1130,7 +1167,38 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
 
                             <!-- Recurring booking options -->
                             <div id="recurring-booking-options" class="booking-options">
-                                <!-- Recurring booking options will be hidden for normal members -->
+                                <div class="date-range-container">
+                                    <div class="input-group">
+                                        <label class="detail-label">Start Date:</label>
+                                        <input type="date" id="recurring-start-date" class="time-slot-select">
+                                    </div>
+                                    <div class="input-group">
+                                        <label class="detail-label">Number of Weeks:</label>
+                                        <select id="recurring-weeks" class="time-slot-select">
+                                            <?php for($i=1; $i<=8; $i++): ?>
+                                                <option value="<?php echo $i; ?>"><?php echo $i; ?> week<?php echo $i>1?'s':''; ?></option>
+                                            <?php endfor; ?>
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <label class="detail-label">Select Days:</label>
+                                        <div class="days-of-week-container">
+                                            <div class="day-box" data-day="1">Mon</div>
+                                            <div class="day-box" data-day="2">Tue</div>
+                                            <div class="day-box" data-day="3">Wed</div>
+                                            <div class="day-box" data-day="4">Thu</div>
+                                            <div class="day-box" data-day="5">Fri</div>
+                                            <div class="day-box" data-day="6">Sat</div>
+                                            <div class="day-box" data-day="0">Sun</div>
+                                        </div>
+                                    </div>
+                                    <div class="input-group">
+                                        <label class="detail-label">Preferred Time:</label>
+                                        <select id="recurring-time" class="time-slot-select">
+                                            <!-- Time slots will be populated dynamically -->
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="detail-row">
@@ -1138,7 +1206,17 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
                             <span class="price">₹<span id="modalPrice"></span></span>
                         </div>
                     </div>
-                    <button class="proceed-payment" onclick="proceedToPayment()" id="proceedBtn" disabled>Proceed to Payment</button>
+                    <div class="detail-row">
+                        <button class="proceed-payment" onclick="proceedToPayment()" id="proceedBtn" disabled>
+                            <?php 
+                            if ($membership_type === 'premium') {
+                                echo 'Proceed to Booking';
+                            } else {
+                                echo 'Proceed to Payment';
+                            }
+                            ?>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1155,48 +1233,47 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
                     <p style="font-size: 1.2rem; margin-bottom: 20px;">This activity requires a higher membership level.</p>
                     <p id="upgradeMessage" style="font-size: 1.1rem; margin-bottom: 30px;"></p>
                 </div>
-                <button style="background-color: #00bcd4; color: white; border: none; padding: 12px 30px; font-size: 1.1rem; border-radius: 5px; cursor: pointer; transition: all 0.3s ease; font-family: 'Bodoni Moda', serif; margin-top: 20px;" onclick="window.location.href='user_home.php?showMembershipModal=true'">Upgrade Membership</button>
+                <button class="proceed-payment" onclick="window.location.href='membership.php'">Upgrade Membership</button>
             </div>
         </div>
     </div>
 
     <footer>
-        <div class="footer-container">
-            <div class="footer-column">
-                <h3>ArenaX</h3>
-                <p>Your premier destination for sports and fitness. Explore a variety of activities and join our vibrant community.</p>
-            </div>
-            <div class="footer-column">
-                <h3>Quick Links</h3>
-                <ul>
-                    <li><a href="homepage.php">Home</a></li>
-                    <li><a href="#about">About Us</a></li>
-                    <li><a href="indoor.php">Indoor Activities</a></li>
-                    <li><a href="outdoor.php">Outdoor Activities</a></li>
-                    <li><a href="homepage.php#membership">Membership</a></li>
-                </ul>
-            </div>
-            <div class="footer-column">
-                <h3>Contact Us</h3>
-                <p>Email: arenax@gmail.com</p>
-                <p>Phone: 9544147855</p>
-                <p>Address: 123 ArenaX Avenue, Sportstown</p>
-            </div>
-            <div class="footer-column">
-                <h3>Follow Us</h3>
-                <div class="social-links">
-                    <a href="#"><i class="fab fa-facebook-f"></i></a>
-                    <a href="#"><i class="fab fa-twitter"></i></a>
-                    <a href="#"><i class="fab fa-instagram"></i></a>
-                    <a href="#"><i class="fab fa-linkedin"></i></a>
-                </div>
+    <div class="footer-container">
+        <div class="footer-column">
+            <h3>ArenaX</h3>
+            <p>Your premier destination for sports and fitness. Explore a variety of activities and join our vibrant community.</p>
+        </div>
+        <div class="footer-column">
+            <h3>Quick Links</h3>
+            <ul>
+                <li><a href="homepage.php">Home</a></li>
+                <li><a href="#about">About Us</a></li>
+                <li><a href="indoor.php">Indoor Activities</a></li>
+                <li><a href="outdoor.php">Outdoor Activities</a></li>
+                <li><a href="homepage.php#membership">Membership</a></li>
+            </ul>
+        </div>
+        <div class="footer-column">
+            <h3>Contact Us</h3>
+            <p>Email: arenax@gmail.com</p>
+            <p>Phone: 9544147855</p>
+            <p>Address: 123 ArenaX Avenue, Sportstown</p>
+        </div>
+        <div class="footer-column">
+            <h3>Follow Us</h3>
+            <div class="social-links">
+                <a href="#"><i class="fab fa-facebook-f"></i></a>
+                <a href="#"><i class="fab fa-twitter"></i></a>
+                <a href="#"><i class="fab fa-instagram"></i></a>
+                <a href="#"><i class="fab fa-linkedin"></i></a>
             </div>
         </div>
-        <div class="footer-bottom">
-            <p>&copy; 2025 ArenaX. All rights reserved.</p>
-        </div>
-    </footer>
-
+    </div>
+    <div class="footer-bottom">
+        <p>&copy; 2025 ArenaX. All rights reserved.</p>
+    </div>
+</footer>
     <script>
         function scrollToAbout() {
             const aboutSection = document.querySelector('.about-section');
@@ -1224,8 +1301,10 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
         document.querySelectorAll('.about-content, .about-image').forEach(element => {
             observer.observe(element);
         });
+    </script>
 
-        // Profile dropdown functionality
+    <!-- Profile dropdown functionality -->
+    <script>
         const profileButton = document.querySelector('.log');
         const dropdown = document.querySelector('.dropdown');
         dropdown.style.display = 'none'; // Ensure dropdown is hidden initially
@@ -1252,17 +1331,29 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
         dropdown.addEventListener('click', function(event) {
             event.stopPropagation();
         });
+    </script>
 
-        // Add the JavaScript functions for modal handling
+    <!-- Update the JavaScript -->
+    <script>
         let selectedTimeSlot = null;
         let selectedDays = new Set();
 
         function formatTime(timeStr) {
-            const [hours, minutes] = timeStr.split(':');
-            const hour = parseInt(hours);
-            const ampm = hour >= 12 ? 'PM' : 'AM';
-            const hour12 = hour % 12 || 12;
-            return `${hour12}:${minutes} ${ampm}`;
+            // Handle empty or undefined time
+            if (!timeStr) return '';
+            
+            try {
+                const [hours, minutes] = timeStr.split(':');
+                const hour = parseInt(hours);
+                if (isNaN(hour)) return '';
+                
+                const ampm = hour >= 12 ? 'PM' : 'AM';
+                const hour12 = hour % 12 || 12;
+                return `${hour12}:${minutes} ${ampm}`;
+            } catch (e) {
+                console.error('Error formatting time:', e);
+                return '';
+            }
         }
 
         function formatDate(dateStr) {
@@ -1276,10 +1367,6 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             return date.toLocaleDateString('en-US', options);
         }
 
-        // Add current membership as a JavaScript variable for access in your script
-        const userMembership = "<?php echo $membership_type; ?>";
-        
-        // Modify the openBookingModal function to check membership requirements
         function openBookingModal(activity) {
             // Check if user has required membership level
             const membershipRequired = activity.required_membership.toLowerCase();
@@ -1323,12 +1410,25 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             datePicker.min = today;
             datePicker.value = today;
 
+            // Remove existing event listener and add new one
+            datePicker.removeEventListener('change', handleDateChange);
+            datePicker.addEventListener('change', handleDateChange);
+
             // Show the modal
             modal.style.display = 'block';
             document.body.style.overflow = 'hidden';
 
+            // Store the sub_activity_id for use in handleDateChange
+            datePicker.dataset.subActivityId = activity.sub_activity_id;
+
             // Trigger initial time slots fetch
             fetchTimeSlots(activity.sub_activity_id, today);
+
+            // Initialize recurring booking functionality
+            initializeRecurringBooking();
+            
+            // Fetch available time slots for recurring bookings
+            fetchRecurringTimeSlots(activity.sub_activity_id);
         }
 
         // Separate function to handle date changes
@@ -1387,44 +1487,67 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             if (bookingType === 'single') {
                 // Single booking logic
                 const selectedDate = document.getElementById('datePicker').value;
-                const selectedTimeSlot = document.querySelector('.time-slot-button.selected');
+                const timeSlotButton = document.querySelector('.time-slot-button.selected');
                 
-                if (!selectedDate || !selectedTimeSlot) {
+                if (!selectedDate || !timeSlotButton) {
                     alert('Please select both date and time slot');
                     return;
                 }
 
-                // Create form for submission
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = 'payment.php';
+                // Get the time slot text and split it into start and end times
+                const timeSlotText = timeSlotButton.textContent;
+                const [startTime, endTime] = timeSlotText.split(' - ');
 
-                // Prepare form data
-                const formData = {
-                    'activity': activityName,
-                    'activity_id': activityId,
-                    'date': selectedDate,
-                    'timeslot': selectedTimeSlot.textContent,
-                    'price': price,
-                    'booking_type': 'single'
-                };
+                if (userMembership === 'standard' || userMembership === 'premium') {
+                    // Direct booking for standard and premium members
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'process_direct_booking.php';
 
-                // Add form fields
-                for (const [key, value] of Object.entries(formData)) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
+                    const formData = {
+                        'activity_id': activityId,
+                        'activity_name': activityName,
+                        'booking_date': selectedDate,
+                        'start_time': startTime,
+                        'end_time': endTime
+                    };
+
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    // Payment process for normal members
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'payment.php';
+
+                    const formData = {
+                        'activity': activityName,
+                        'activity_id': activityId,
+                        'date': selectedDate,
+                        'timeslot': timeSlotButton.textContent,
+                        'price': price,
+                        'booking_type': 'single'
+                    };
+
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
                 }
-
-                // Debug log
-                console.log('Submitting form with data:', formData);
-
-                // Add form to document and submit
-                document.body.appendChild(form);
-                form.submit();
-
             } else {
                 // Recurring booking logic
                 const startDate = document.getElementById('recurring-start-date').value;
@@ -1436,40 +1559,69 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
                     return;
                 }
 
-                const totalSessions = selectedDays.size * parseInt(weeks);
+                // Calculate total sessions and price
+                const totalSessions = selectedDays.size * weeks;
                 const pricePerSession = parseFloat(price);
                 const totalPrice = totalSessions * pricePerSession;
 
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = 'payment.php';
+                if (userMembership === 'premium') {
+                    // Direct booking for premium members
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'process_direct_booking.php';
 
-                const formData = {
-                    'activity': activityName,
-                    'booking_type': 'recurring',
-                    'activity_id': activityId,
-                    'start_date': startDate,
-                    'weeks': weeks,
-                    'selected_days': JSON.stringify(Array.from(selectedDays)),
-                    'booking_time': selectedTime,
-                    'total_sessions': totalSessions,
-                    'price': totalPrice,
-                    'price_per_session': pricePerSession
-                };
+                    const formData = {
+                        'activity_id': activityId,
+                        'activity_name': activityName,
+                        'booking_date': startDate,
+                        'start_time': selectedTime.split('|')[0],
+                        'end_time': selectedTime.split('|')[1],
+                        'booking_type': 'recurring',
+                        'weeks': weeks,
+                        'selected_days': JSON.stringify(Array.from(selectedDays)),
+                        'total_sessions': totalSessions
+                    };
 
-                for (const [key, value] of Object.entries(formData)) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    // Payment process for standard and normal members
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'payment.php';
+
+                    const formData = {
+                        'activity': activityName,
+                        'booking_type': 'recurring',
+                        'activity_id': activityId,
+                        'start_date': startDate,
+                        'weeks': weeks,
+                        'selected_days': JSON.stringify(Array.from(selectedDays)),
+                        'booking_time': selectedTime,
+                        'total_sessions': totalSessions,
+                        'price': totalPrice,
+                        'price_per_session': pricePerSession
+                    };
+
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
                 }
-
-                // Debug log
-                console.log('Submitting recurring booking form with data:', formData);
-
-                document.body.appendChild(form);
-                form.submit();
             }
         }
 
@@ -1488,12 +1640,82 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             }
         });
 
+        // Add current membership as a JavaScript variable for access in your script
+        const userMembership = "<?php echo $membership_type; ?>";
+
         function closeUpgradeModal() {
             document.getElementById('upgradeModal').style.display = 'none';
             document.body.style.overflow = 'auto';
         }
 
-        // Add these new functions
+        // Close upgrade modal when clicking outside the modal content
+        window.addEventListener('click', function(event) {
+            const upgradeModal = document.getElementById('upgradeModal');
+            if (event.target === upgradeModal) {
+                upgradeModal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        // Add event listeners to booking type buttons
+        document.querySelectorAll('.booking-type-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.booking-type-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // Add active class to clicked button
+                this.classList.add('active');
+                
+                // Hide all booking options
+                document.querySelectorAll('.booking-options').forEach(option => {
+                    option.classList.remove('active');
+                });
+                
+                // Show selected booking option
+                const bookingType = this.dataset.type;
+                const proceedBtn = document.getElementById('proceedBtn');
+
+                // Update button text based on booking type and membership
+                if (bookingType === 'recurring') {
+                    if (userMembership === 'premium') {
+                        proceedBtn.textContent = 'Proceed to Booking';
+                    } else {
+                        proceedBtn.textContent = 'Proceed to Payment';
+                    }
+                } else {
+                    if (userMembership === 'standard' || userMembership === 'premium') {
+                        proceedBtn.textContent = 'Proceed to Booking';
+                    } else {
+                        proceedBtn.textContent = 'Proceed to Payment';
+                    }
+                }
+
+                // Check if the user is trying to select recurring booking with normal membership
+                if (bookingType === 'recurring' && userMembership === 'normal') {
+                    // Show upgrade modal
+                    const upgradeModal = document.getElementById('upgradeModal');
+                    const upgradeMessage = document.getElementById('upgradeMessage');
+                    upgradeMessage.textContent = `Your current membership: ${userMembership.toUpperCase()}. This activity requires a higher membership level for recurring bookings.`;
+                    upgradeModal.style.display = 'block';
+                    document.body.style.overflow = 'hidden';
+
+                    // Stay in single booking options
+                    document.getElementById('single-booking-options').classList.add('active');
+                    this.classList.remove('active');
+                    return;
+                }
+
+                // Show selected booking option
+                document.getElementById(`${bookingType}-booking-options`).classList.add('active');
+                
+                // Reset proceed button
+                proceedBtn.disabled = true;
+            });
+        });
+
+        // Initialize recurring booking handlers
         function initializeRecurringBooking() {
             const dayBoxes = document.querySelectorAll('.day-box');
             const startDate = document.getElementById('recurring-start-date');
@@ -1527,70 +1749,6 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             timeSelect.addEventListener('change', validateRecurringBooking);
         }
 
-        // Add event listeners to booking type buttons
-        document.querySelectorAll('.booking-type-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                // Remove active class from all buttons
-                document.querySelectorAll('.booking-type-btn').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-                
-                // Add active class to clicked button
-                this.classList.add('active');
-                
-                // Hide all booking options
-                document.querySelectorAll('.booking-options').forEach(option => {
-                    option.classList.remove('active');
-                });
-                
-                // Show selected booking option
-                const bookingType = this.dataset.type;
-
-                // Check if the user is trying to select recurring booking with normal membership
-                if (bookingType === 'recurring' && userMembership === 'normal') {
-                    // Show upgrade modal
-                    const upgradeModal = document.getElementById('upgradeModal');
-                    const upgradeMessage = document.getElementById('upgradeMessage');
-                    upgradeMessage.textContent = `Your current membership: ${userMembership.toUpperCase()}. This activity requires a higher membership level for recurring bookings.`;
-                    upgradeModal.style.display = 'block';
-                    document.body.style.overflow = 'hidden';
-
-                    // Stay in single booking options
-                    document.getElementById('single-booking-options').classList.add('active'); // Keep single booking active
-                    this.classList.remove('active'); // Remove active class from recurring button
-                    return; // Prevent further execution
-                }
-
-                // Show selected booking option
-                document.getElementById(`${bookingType}-booking-options`).classList.add('active');
-                
-                // Reset proceed button
-                document.getElementById('proceedBtn').disabled = true;
-            });
-        });
-
-        function fetchRecurringTimeSlots(subActivityId) {
-            const timeSelect = document.getElementById('recurring-time');
-            
-            fetch(`fetch_recurring_slots.php?sub_activity_id=${subActivityId}`)
-                .then(response => response.json())
-                .then(data => {
-                    timeSelect.innerHTML = '<option value="">Select a time</option>';
-                    data.forEach(slot => {
-                        const startTime = formatTime(slot.slot_start_time);
-                        const endTime = formatTime(slot.slot_end_time);
-                        const option = document.createElement('option');
-                        option.value = `${slot.slot_start_time}|${slot.slot_end_time}`;
-                        option.textContent = `${startTime} - ${endTime}`;
-                        timeSelect.appendChild(option);
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching recurring time slots:', error);
-                    timeSelect.innerHTML = '<option value="">Error loading time slots</option>';
-                });
-        }
-
         function updateRecurringSummary() {
             if (selectedDays.size === 0) return;
 
@@ -1603,6 +1761,7 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
             const pricePerSession = parseFloat(document.getElementById('modalPrice').textContent);
             const totalPrice = totalSessions * pricePerSession;
 
+            // Create or update summary div
             let summaryDiv = document.querySelector('.recurring-summary');
             if (!summaryDiv) {
                 summaryDiv = document.createElement('div');
@@ -1628,81 +1787,41 @@ $membership_type = isset($userData['membership_type']) ? strtolower($userData['m
         function validateRecurringBooking() {
             const proceedBtn = document.getElementById('proceedBtn');
             const timeSelect = document.getElementById('recurring-time');
+            
             proceedBtn.disabled = selectedDays.size === 0 || !timeSelect.value;
         }
 
-        // Add this code after your existing JavaScript code
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add click handlers for booking type buttons
-            const bookingTypeButtons = document.querySelectorAll('.booking-type-btn');
-            const singleBookingOptions = document.getElementById('single-booking-options');
-            const recurringBookingOptions = document.getElementById('recurring-booking-options');
+        // Add this function to format time in 12-hour format
+        function formatTimeSlot(time24h) {
+            const [hours, minutes] = time24h.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour % 12 || 12;
+            return `${hour12}:${minutes} ${ampm}`;
+        }
 
-            bookingTypeButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    // Remove active class from all buttons
-                    bookingTypeButtons.forEach(btn => btn.classList.remove('active'));
-                    // Add active class to clicked button
-                    this.classList.add('active');
-
-                    // Show/hide appropriate booking options
-                    if (this.dataset.type === 'single') {
-                        singleBookingOptions.classList.add('active');
-                        recurringBookingOptions.classList.remove('active');
-                    } else {
-                        singleBookingOptions.classList.remove('active');
-                        recurringBookingOptions.classList.add('active');
-                    }
-
-                    // Reset the proceed button
-                    document.getElementById('proceedBtn').disabled = true;
+        // Update the fetchRecurringTimeSlots function
+        function fetchRecurringTimeSlots(subActivityId) {
+            const timeSelect = document.getElementById('recurring-time');
+            
+            fetch(`fetch_recurring_slots.php?sub_activity_id=${subActivityId}`)
+                .then(response => response.json())
+                .then(data => {
+                    timeSelect.innerHTML = '<option value="">Select a time</option>';
+                    data.forEach(slot => {
+                        const startTime = formatTimeSlot(slot.slot_start_time);
+                        const endTime = formatTimeSlot(slot.slot_end_time);
+                        const option = document.createElement('option');
+                        option.value = `${slot.slot_start_time}|${slot.slot_end_time}`;
+                        option.textContent = `${startTime} - ${endTime}`;
+                        timeSelect.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching recurring time slots:', error);
+                    timeSelect.innerHTML = '<option value="">Error loading time slots</option>';
                 });
-            });
-
-            // Enable proceed button when time slot is selected (for single booking)
-            const timeSlotContainer = document.getElementById('timeSlotContainer');
-            if (timeSlotContainer) {
-                timeSlotContainer.addEventListener('click', function(e) {
-                    if (e.target.classList.contains('time-slot-button')) {
-                        document.querySelectorAll('.time-slot-button').forEach(btn => {
-                            btn.classList.remove('selected');
-                        });
-                        e.target.classList.add('selected');
-                        document.getElementById('proceedBtn').disabled = false;
-                    }
-                });
-            }
-
-            // Add click handler for proceed button
-            const proceedBtn = document.getElementById('proceedBtn');
-            if (proceedBtn) {
-                proceedBtn.addEventListener('click', function() {
-                    const bookingType = document.querySelector('.booking-type-btn.active').dataset.type;
-                    if (bookingType === 'single') {
-                        const selectedDate = document.getElementById('datePicker').value;
-                        const selectedTimeSlot = document.querySelector('.time-slot-button.selected');
-                        
-                        if (!selectedDate || !selectedTimeSlot) {
-                            alert('Please select both date and time slot');
-                            return;
-                        }
-                        
-                        proceedToPayment();
-                    } else {
-                        // Handle recurring booking validation
-                        const startDate = document.getElementById('recurring-start-date').value;
-                        const selectedTime = document.getElementById('recurring-time').value;
-                        
-                        if (!startDate || !selectedTime || selectedDays.size === 0) {
-                            alert('Please select start date, time, and at least one day of the week');
-                            return;
-                        }
-                        
-                        proceedToPayment();
-                    }
-                });
-            }
-        });
+        }
     </script>
 </body>
 </html>

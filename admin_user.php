@@ -529,10 +529,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <header class="dashboard-header">
                 <h1>User Management</h1>
                 <div class="header-actions">
-                    <div class="notifications">
-                        <span class="notifications-icon">🔔</span>
-                        <span class="notifications-badge">3</span>
-                    </div>
                     <div class="dropdown">
                         <div class="user-profile">
                             <div class="user-avatar">AD</div>
