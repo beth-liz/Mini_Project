@@ -1368,6 +1368,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         }
 
         function openBookingModal(activity) {
+            // Reset all selections first
+            resetAllSelections();
+
             // Check if user has required membership level
             const membershipRequired = activity.required_membership.toLowerCase();
             const membershipLevels = ['normal', 'standard', 'premium'];
@@ -1596,7 +1599,40 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                     document.body.appendChild(form);
                     form.submit();
                 } else {
-                    // Existing payment process code for non-premium users...
+                    // Payment process for standard users
+                    const totalSessions = selectedDays.size * weeks;
+                    const pricePerSession = parseFloat(price);
+                    const totalPrice = totalSessions * pricePerSession;
+
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = 'payment.php';
+
+                    const formData = {
+                        'activity': activityName,
+                        'activity_id': activityId,
+                        'start_date': startDate,
+                        'end_date': endDate.toISOString().split('T')[0],
+                        'booking_time': `${startTime} - ${endTime}`,
+                        'timeslot': `${startTime} - ${endTime}`,
+                        'price': totalPrice.toFixed(2),
+                        'price_per_session': price,
+                        'total_sessions': totalSessions,
+                        'booking_type': 'recurring',
+                        'selected_days': JSON.stringify(selectedDaysArray),
+                        'weeks': weeks
+                    };
+
+                    for (const [key, value] of Object.entries(formData)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
                 }
             }
         }
@@ -1605,6 +1641,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         document.querySelector('.close-modal').addEventListener('click', function() {
             document.getElementById('bookingModal').style.display = 'none';
             document.body.style.overflow = 'auto';
+            resetAllSelections();
         });
 
         // Close modal when clicking outside the modal content
@@ -1613,6 +1650,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
             if (event.target === modal) {
                 modal.style.display = 'none';
                 document.body.style.overflow = 'auto';
+                resetAllSelections();
             }
         });
 
@@ -1703,8 +1741,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
             startDate.min = today;
             startDate.value = today;
 
-            // Handle day selection
+            // Remove old event listeners by cloning and replacing elements
             dayBoxes.forEach(box => {
+                const newBox = box.cloneNode(true);
+                box.parentNode.replaceChild(newBox, box);
+            });
+
+            // Add new event listeners to the fresh elements
+            document.querySelectorAll('.day-box').forEach(box => {
                 box.addEventListener('click', function() {
                     const day = this.dataset.day;
                     if (this.classList.contains('selected')) {
@@ -1719,10 +1763,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                 });
             });
 
-            // Handle date and weeks changes
-            startDate.addEventListener('change', updateRecurringSummary);
-            weeksSelect.addEventListener('change', updateRecurringSummary);
-            timeSelect.addEventListener('change', validateRecurringBooking);
+            // Remove and re-add event listeners for date and weeks
+            const newStartDate = startDate.cloneNode(true);
+            startDate.parentNode.replaceChild(newStartDate, startDate);
+            newStartDate.addEventListener('change', updateRecurringSummary);
+
+            const newWeeksSelect = weeksSelect.cloneNode(true);
+            weeksSelect.parentNode.replaceChild(newWeeksSelect, weeksSelect);
+            newWeeksSelect.addEventListener('change', updateRecurringSummary);
+
+            const newTimeSelect = timeSelect.cloneNode(true);
+            timeSelect.parentNode.replaceChild(newTimeSelect, timeSelect);
+            newTimeSelect.addEventListener('change', validateRecurringBooking);
         }
 
         function updateRecurringSummary() {
@@ -1797,6 +1849,73 @@ input[type="date"]::-webkit-calendar-picker-indicator {
                     console.error('Error fetching recurring time slots:', error);
                     timeSelect.innerHTML = '<option value="">Error loading time slots</option>';
                 });
+        }
+
+        // Add this function to reset recurring booking state
+        function resetAllSelections() {
+            // Clear selected days Set
+            selectedDays.clear();
+            
+            // Reset all day boxes
+            document.querySelectorAll('.day-box').forEach(box => {
+                box.classList.remove('selected');
+                // Ensure pointer events are enabled
+                box.style.pointerEvents = 'auto';
+                // Remove any inline styles that might have been added
+                box.removeAttribute('style');
+            });
+
+            // Reset date inputs
+            const startDate = document.getElementById('recurring-start-date');
+            if (startDate) {
+                startDate.value = new Date().toISOString().split('T')[0];
+                startDate.removeAttribute('style');
+            }
+
+            // Reset weeks selection
+            const weeksSelect = document.getElementById('recurring-weeks');
+            if (weeksSelect) {
+                weeksSelect.selectedIndex = 0;
+                weeksSelect.removeAttribute('style');
+            }
+
+            // Reset time selection
+            const timeSelect = document.getElementById('recurring-time');
+            if (timeSelect) {
+                timeSelect.selectedIndex = 0;
+                timeSelect.removeAttribute('style');
+            }
+
+            // Remove any existing summary
+            const summaryDiv = document.querySelector('.recurring-summary');
+            if (summaryDiv) {
+                summaryDiv.remove();
+            }
+
+            // Reset booking type to single
+            document.querySelectorAll('.booking-type-btn').forEach(btn => {
+                btn.classList.remove('active');
+                // Remove any inline styles
+                btn.removeAttribute('style');
+            });
+            const singleBookingBtn = document.querySelector('.booking-type-btn[data-type="single"]');
+            if (singleBookingBtn) {
+                singleBookingBtn.classList.add('active');
+            }
+
+            // Show single booking options, hide recurring
+            const singleOptions = document.getElementById('single-booking-options');
+            const recurringOptions = document.getElementById('recurring-booking-options');
+            if (singleOptions && recurringOptions) {
+                singleOptions.classList.add('active');
+                recurringOptions.classList.remove('active');
+            }
+
+            // Disable proceed button
+            const proceedBtn = document.getElementById('proceedBtn');
+            if (proceedBtn) {
+                proceedBtn.disabled = true;
+            }
         }
     </script>
 </body>

@@ -524,7 +524,7 @@ ini_set('display_errors', 1);
         .payment-container {
             max-width: 800px;
             padding: 30px;
-            background: rgba(77, 69, 69, 0.9); /* Change to a semi-transparent white */
+            background:rgb(251 254 255 / 87%); /* Change to a semi-transparent white */
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
             border-radius: 20px;
             margin: 40px auto;
@@ -592,7 +592,7 @@ ini_set('display_errors', 1);
         }
 
         .payment-form {
-            background:rgba(255, 255, 255, 0.42);
+            background:rgba(255, 255, 255, 0.93);
             padding: 30px;
             border-radius: 12px;
             margin-top: 30px;
@@ -619,7 +619,7 @@ ini_set('display_errors', 1);
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
-            color: #4a4a4a;
+            color:rgb(255, 249, 249);
             font-size: 0.95em;
         }
 
@@ -667,7 +667,7 @@ ini_set('display_errors', 1);
             right: 10px;
             top: 50%;
             transform: translateY(-50%);
-            color: #6c757d;
+            color:rgb(255, 255, 255);
         }
 
         .input-wrapper {

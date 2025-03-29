@@ -1080,7 +1080,7 @@ border-bottom: 8px solid rgba(0, 0, 0, 0.9);
                             <p class="event-date"><i class="far fa-calendar-alt"></i> <?php echo htmlspecialchars($event['event_date']); ?></p>
                             <p class="event-time"><i class="far fa-clock"></i> <?php echo htmlspecialchars($event['event_time']); ?></p>
                             <p class="event-location"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($event['event_location']); ?></p>
-                            <p class="event-price"><i class="fas fa-tag"></i> $<?php echo htmlspecialchars($event['event_price']); ?></p>
+                            <p class="event-price"><i class="fas fa-tag"></i> ₹<?php echo htmlspecialchars($event['event_price']); ?></p>
                             <p class="event-description" style="display:none;"><?php echo htmlspecialchars($event['event_description']); ?></p>
                         </div>
                         <div class="event-actions">
