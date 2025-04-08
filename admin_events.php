@@ -524,7 +524,7 @@ if (isset($_SESSION['success_message'])) {
 
         body {
             font-family: 'Unna', serif;
-            background-image: url('img/log.jpg');
+            background-image: url('img/r5.jpg');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -914,12 +914,14 @@ if (isset($_SESSION['success_message'])) {
             <ul class="sidebar-nav">
                 <li class="sidebar-nav-item"><a href="manager_dashboard.php">Overview</a></li>
                 <li class="sidebar-nav-item"><a href="manager_user.php">Users</a></li>
+                <li class="sidebar-nav-item"><a href="manager_manager.php">Manager</a></li>
                 <li class="sidebar-nav-item"><a href="manager_activities.php">Activities</a></li>
                 <li class="sidebar-nav-item"><a href="manager_sub_activities.php">Sub-Activities</a></li>
                 <li class="sidebar-nav-item"><a href="manager_membership.php">Membership</a></li>
                 <li class="sidebar-nav-item"><a href="manager_time_slots.php">Time Slots</a></li>
                 <li class="sidebar-nav-item"><a href="manager_bookings.php">Bookings</a></li>
                 <li class="sidebar-nav-item active"><a href="manager_events.php">Events</a></li>
+                <li class="sidebar-nav-item"><a href="manager_payments.php">Payments</a></li>
                 <li class="sidebar-nav-item"><a href="manager_feedback.php">Feedback</a></li>
             </ul>
         </nav>

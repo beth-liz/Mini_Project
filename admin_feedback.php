@@ -66,7 +66,7 @@ require_once 'db_connect.php'; // Updated path to database connection file
 
         body {
             font-family: 'Unna', serif;
-            background-image: url('img/log.jpg');
+            background-image: url('img/r5.jpg');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -501,12 +501,14 @@ td:nth-child(6) {
         <ul class="sidebar-nav">
                 <li class="sidebar-nav-item"><a href="admin_overview.php">Overview</a></li>
                 <li class="sidebar-nav-item"><a href="admin_user.php">Users</a></li>
+                <li class="sidebar-nav-item"><a href="admin_manager.php">Manager</a></li>
                 <li class="sidebar-nav-item "><a href="admin_activities.php">Activities</a></li>
                 <li class="sidebar-nav-item"><a href="admin_sub_activities.php">Sub-Activities</a></li>
                 <li class="sidebar-nav-item"><a href="admin_membership.php">Membership</a></li>
                 <li class="sidebar-nav-item"><a href="admin_time_slots.php">Time Slots</a></li>
                 <li class="sidebar-nav-item"><a href="admin_bookings.php">Bookings</a></li>
                 <li class="sidebar-nav-item"><a href="admin_events.php">Events</a></li>
+                <li class="sidebar-nav-item"><a href="admin_payments.php">Payments</a></li>
                 <li class="sidebar-nav-item active"><a href="admin_feedback.php">Feedback</a></li>
             </ul>
         </nav>

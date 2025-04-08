@@ -513,12 +513,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <ul class="sidebar-nav">
             <li class="sidebar-nav-item"><a href="admin_overview.php">Overview</a></li>
             <li class="sidebar-nav-item active"><a href="admin_user.php">Users</a></li>
+            <li class="sidebar-nav-item"><a href="admin_manager.php">Manager</a></li>
             <li class="sidebar-nav-item"><a href="admin_activities.php">Activities</a></li>
             <li class="sidebar-nav-item"><a href="admin_sub_activities.php">Sub-Activities</a></li>
             <li class="sidebar-nav-item"><a href="admin_membership.php">Membership</a></li>
             <li class="sidebar-nav-item"><a href="admin_time_slots.php">Time Slots</a></li>
             <li class="sidebar-nav-item"><a href="admin_bookings.php">Bookings</a></li>
             <li class="sidebar-nav-item"><a href="admin_events.php">Events</a></li>
+            <li class="sidebar-nav-item"><a href="admin_payments.php">Payments</a></li>
             <li class="sidebar-nav-item"><a href="admin_feedback.php">Feedback</a></li>
         </ul>
         </nav>

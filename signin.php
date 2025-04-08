@@ -4,7 +4,7 @@ ini_set('display_errors', 1);
 session_start();
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Database connection (adjust these values according to your database settings)
+    // Database connection
     $conn = mysqli_connect("localhost", "root", "", "arenax");
     
     if (!$conn) {
@@ -14,14 +14,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = mysqli_real_escape_string($conn, $_POST['email']);
     $password = $_POST['password'];
     
-    // Check for admin credentials
-    if ($email === "manager@gmail.com" && $password === "12345678") {
-        $_SESSION['manager'] = true;
-        $_SESSION['email'] = $email;
-        $_SESSION['role'] = 'manager';
-        header("Location: manager_dashboard.php");
-        exit();
-    } elseif ($email === "admin@gmail.com" && $password === "12345678") {
+    // First check for admin (keep this hardcoded as requested)
+    if ($email === "admin@gmail.com" && $password === "12345678") {
         $_SESSION['admin'] = true;
         $_SESSION['email'] = $email;
         $_SESSION['role'] = 'admin';
@@ -29,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
     
-    // Regular user authentication
+    // Check database for users and managers
     $sql = "SELECT * FROM users WHERE email = ?";
     $stmt = mysqli_prepare($conn, $sql);
     mysqli_stmt_bind_param($stmt, "s", $email);
@@ -44,11 +38,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['email'] = $email;
             
-            // Check membership_id and redirect accordingly
+            // Check if user is a manager
+            if ($user['role'] === 'manager') {
+                $_SESSION['manager'] = true;
+                $_SESSION['role'] = 'manager';
+                header("Location: manager_dashboard.php");
+                exit();
+            }
+            
+            // For regular users, keep the existing membership check
             if ($user['membership_id'] == 1) {
                 header("Location: membership_plans.php");
             } else {
-                header("Location: user_home.php"); // Redirect for all other membership_ids
+                header("Location: user_home.php");
             }
             exit();
         } else {

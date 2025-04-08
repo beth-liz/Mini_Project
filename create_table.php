@@ -34,13 +34,12 @@ $sql = "CREATE TABLE users (
     mobile VARCHAR(15) NOT NULL,
     password VARCHAR(255) NOT NULL,
     membership_id INT DEFAULT 1,
-    role INT DEFAULT 1,
+    role ENUM('user', 'manager', 'admin') DEFAULT 'user',
     reset_token VARCHAR(100) DEFAULT NULL,
     token_expiry DATETIME DEFAULT NULL,
     profile_image VARCHAR(255) DEFAULT NULL,
     FOREIGN KEY (membership_id) REFERENCES memberships(membership_id)
 )";
-
 
 if ($conn->query($sql) === TRUE) {
     echo "Table users created successfully";
