@@ -643,6 +643,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             saveBtn.style.display = 'inline-block';
             cancelBtn.style.display = 'inline-block';
             imageUploadContainer.style.display = 'block';
+
+            // Disable editing of Full Name and Email
+            const fullNameInput = document.querySelector('input[name="name"]');
+            const emailInput = document.querySelector('input[name="email"]');
+            fullNameInput.disabled = true; // Disable Full Name input
+            emailInput.disabled = true; // Disable Email input
         });
 
         cancelBtn.addEventListener('click', () => {
@@ -657,75 +663,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             imageError.style.display = 'none';
         });
 
-        // Replace the existing saveBtn click handler with this updated version
-saveBtn.addEventListener('click', async () => {
-    // Get form data
-    const formData = new FormData(editForm);
-    
-    // Clear previous error messages
-    const errorDiv = document.getElementById('edit-error');
-    const successDiv = document.getElementById('success-message');
-    errorDiv.style.display = 'none';
-    successDiv.style.display = 'none';
-    
-    // Add the DOB and image if present
-    const dobText = document.querySelector('#profile-view .detail-group:nth-child(3) p').textContent;
-    formData.append('dob', new Date(dobText).toISOString().split('T')[0]);
-    
-    const imageFile = profileImageInput.files[0];
-    if (imageFile) {
-        formData.append('profile_image', imageFile);
-    }
-
-    try {
-        const response = await fetch('update_profile.php', {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.json();
-        
-        if (!result.success) {
-            // Display error message
-            errorDiv.textContent = result.debug 
-                ? `${result.message}\n${JSON.stringify(result.debug)}`
-                : result.message;
-            errorDiv.style.display = 'block';
-            // Add error styling
-            errorDiv.style.color = '#ff4444';
-            errorDiv.style.padding = '10px';
-            errorDiv.style.marginBottom = '10px';
-            errorDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
-            errorDiv.style.border = '1px solid #ff4444';
-            errorDiv.style.borderRadius = '4px';
-        } else {
-            // Show success message
-            successDiv.textContent = result.message;
-            successDiv.style.display = 'block';
-            successDiv.style.color = '#00ff00';
-            successDiv.style.padding = '10px';
-            successDiv.style.marginBottom = '10px';
-            successDiv.style.backgroundColor = 'rgba(0, 255, 0, 0.1)';
-            successDiv.style.border = '1px solid #00ff00';
-            successDiv.style.borderRadius = '4px';
+        // Save button click event
+        saveBtn.addEventListener('click', async () => {
+            // Get form data
+            const formData = new FormData(editForm);
             
-            // Refresh after success
-            setTimeout(() => window.location.reload(), 2000);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        errorDiv.textContent = 'An error occurred while updating the profile';
-        errorDiv.style.display = 'block';
-    }
-});
+            // Clear previous error messages
+            const errorDiv = document.getElementById('edit-error');
+            const successDiv = document.getElementById('success-message');
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            
+            // Add the DOB and image if present
+            const dobText = document.querySelector('#profile-view .detail-group:nth-child(3) p').textContent;
+            formData.append('dob', new Date(dobText).toISOString().split('T')[0]);
+            
+            const imageFile = profileImageInput.files[0];
+            if (imageFile) {
+                formData.append('profile_image', imageFile);
+            }
 
-// Add this validation event listener for the form
-if (editForm) {
-    editForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        saveBtn.click(); // Trigger the save button click handler
-    });
-}
+            // Include the mobile number in the form data
+            const mobileInput = document.querySelector('input[name="mobile"]');
+            formData.append('mobile', mobileInput.value);
+
+            try {
+                const response = await fetch('update_profile.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (!result.success) {
+                    // Display error message
+                    errorDiv.textContent = result.debug 
+                        ? `${result.message}\n${JSON.stringify(result.debug)}`
+                        : result.message;
+                    errorDiv.style.display = 'block';
+                } else {
+                    // Show success message
+                    successDiv.textContent = result.message;
+                    successDiv.style.display = 'block';
+                    
+                    // Refresh after success
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorDiv.textContent = 'An error occurred while updating the profile';
+                errorDiv.style.display = 'block';
+            }
+        });
 
         // Image upload handling
         const profileImage = document.getElementById('profile-image-preview');

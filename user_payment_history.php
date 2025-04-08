@@ -408,30 +408,41 @@ if (isset($_GET['bill']) && !empty($_GET['bill'])) {
         </h2>
 
         <?php
-        // Fetch booking payment history
-        $sql_booking = "SELECT p.payment_id, p.amount, p.payment_date, p.payment_time, 
-                        b.booking_date, b.bill
-                        FROM payment p
-                        INNER JOIN booking b ON p.booking_id = b.booking_id
-                        WHERE p.user_id = ? AND p.booking_id IS NOT NULL
-                        ORDER BY p.payment_date DESC, p.payment_time DESC";
+        // Fetch regular booking payments
+        $sql_regular = "SELECT 
+            p.payment_id, 
+            p.amount, 
+            p.payment_date, 
+            p.payment_time,
+            b.booking_date, 
+            b.bill,
+            'Regular' as booking_type
+        FROM payment p
+        INNER JOIN booking b ON p.booking_id = b.booking_id
+        WHERE p.user_id = ? AND p.booking_id IS NOT NULL
+        ORDER BY p.payment_date DESC, p.payment_time DESC";
 
-        $stmt_booking = $conn->prepare($sql_booking);
-        $stmt_booking->bindValue(1, $user_id, PDO::PARAM_INT);
-        $stmt_booking->execute();
-        $booking_result = $stmt_booking->fetchAll(PDO::FETCH_ASSOC);
+        $stmt_regular = $conn->prepare($sql_regular);
+        $stmt_regular->bindValue(1, $user_id, PDO::PARAM_INT);
+        $stmt_regular->execute();
+        $regular_result = $stmt_regular->fetchAll(PDO::FETCH_ASSOC);
 
-        if (count($booking_result) > 0): ?>
-            <?php foreach ($booking_result as $booking_row): ?>
+        // Display regular booking payments
+        if (count($regular_result) > 0): ?>
+            <?php foreach ($regular_result as $booking_row): ?>
                 <div class="payment-card">
                     <p>
                         <span style="font-size: 1.5em; color: white;">
                             <?php echo date('d M Y', strtotime($booking_row['payment_date'])); ?>
                         </span>
+                        <span class="badge status-badge" style="margin-left: 10px;">
+                            Regular Booking
+                        </span>
                     </p>
-                    <p><strong>Amount:</strong> ₹<?php echo intval($booking_row['amount']); ?></p>
+                    <p><strong>Amount:</strong> ₹<?php echo number_format($booking_row['amount'], 2); ?></p>
                     <p><strong>Payment Time:</strong> <?php echo date('h:i A', strtotime($booking_row['payment_time'])); ?></p>
                     <p><strong>Booking Date:</strong> <?php echo date('d M Y', strtotime($booking_row['booking_date'])); ?></p>
+                    
                     <?php if (!empty($booking_row['bill'])): ?>
                     <div style="display: flex; align-items: center;">
                         <p style="margin: 0; margin-right: 10px;"><strong>Bill:</strong></p>
@@ -443,7 +454,9 @@ if (isset($_GET['bill']) && !empty($_GET['bill'])) {
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
-        <?php else: ?>
+        <?php endif; ?>
+
+        <?php if (count($regular_result) === 0): ?>
             <div class="no-payments">
                 <i class="fas fa-info-circle fa-2x mb-3"></i>
                 <p>No booking payment history found.</p>

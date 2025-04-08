@@ -188,6 +188,28 @@ if ($conn->query($sql) === TRUE) {
 } else {
     echo "Error creating table: " . $conn->error;
 }
+// SQL to create recurring_bookings table
+$sql = "CREATE TABLE recurring_bookings (
+    recurring_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    sub_activity_id INT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    booking_time TIME NOT NULL,
+    selected_days VARCHAR(50) NOT NULL, -- Store days as comma-separated string (e.g., '1,3,5' for Mon,Wed,Fri)
+    status ENUM('active', 'completed', 'cancelled') DEFAULT 'active',
+    bill VARCHAR(255), -- Added column for storing bill path
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (sub_activity_id) REFERENCES sub_activity(sub_activity_id),
+    CHECK (DATEDIFF(end_date, start_date) <= 56) -- Maximum 8 weeks
+)";
+
+if ($conn->query($sql) === TRUE) {
+    echo "Table recurring_bookings created successfully<br>";
+} else {
+    echo "Error creating table: " . $conn->error . "<br>";
+}
 
 // SQL to create payment table
 $sql = "CREATE TABLE payment (
@@ -199,10 +221,12 @@ $sql = "CREATE TABLE payment (
     booking_id INT,
     event_reg_id INT,
     membership_reg_id INT,
+    recurring_id INT,
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (booking_id) REFERENCES booking(booking_id),
     FOREIGN KEY (event_reg_id) REFERENCES event_registration(event_reg_id),
-    FOREIGN KEY (membership_reg_id) REFERENCES membership_reg(membership_reg_id)
+    FOREIGN KEY (membership_reg_id) REFERENCES membership_reg(membership_reg_id),
+    FOREIGN KEY (recurring_id) REFERENCES recurring_bookings(recurring_id)
 )";
 
 if ($conn->query($sql) === TRUE) {
@@ -257,28 +281,7 @@ if ($conn->query($sql) === TRUE) {
     echo "Error creating table: " . $conn->error;
 }
 
-// SQL to create recurring_bookings table
-$sql = "CREATE TABLE recurring_bookings (
-    recurring_id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    sub_activity_id INT NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    booking_time TIME NOT NULL,
-    selected_days VARCHAR(50) NOT NULL, -- Store days as comma-separated string (e.g., '1,3,5' for Mon,Wed,Fri)
-    status ENUM('active', 'completed', 'cancelled') DEFAULT 'active',
-    bill VARCHAR(255), -- Added column for storing bill path
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id),
-    FOREIGN KEY (sub_activity_id) REFERENCES sub_activity(sub_activity_id),
-    CHECK (DATEDIFF(end_date, start_date) <= 56) -- Maximum 8 weeks
-)";
 
-if ($conn->query($sql) === TRUE) {
-    echo "Table recurring_bookings created successfully<br>";
-} else {
-    echo "Error creating table: " . $conn->error . "<br>";
-}
 
 // SQL to create recurring_slots table
 $sql = "CREATE TABLE recurring_slots (
