@@ -582,7 +582,6 @@
                                 <th>Email</th>
                                 <th>Mobile</th>
                                 <th>Date of Birth</th>
-                                <th>Role</th>
                                 <th>Membership Type</th>
                                 <!-- <th>Actions</th> -->
                             </tr>
@@ -595,7 +594,6 @@
                                     <td><?php echo htmlspecialchars($user['email']); ?></td>
                                     <td><?php echo htmlspecialchars($user['mobile']); ?></td>
                                     <td><?php echo htmlspecialchars($user['dob']); ?></td>
-                                    <td><?php echo $user['role'] == 1 ? 'User' : 'Admin'; ?></td>
                                     <td><?php echo htmlspecialchars($user['membership_type']); ?></td>
                                     <!-- <td> -->
                                         <!-- <div class="action-buttons"> -->
